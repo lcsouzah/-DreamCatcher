@@ -74,4 +74,4 @@ Feature development
 
 Emission curves and caps
 
-Sleep well. Dream big. Get rewarded.
+Sleep well. Dream big. Get rewarded!
