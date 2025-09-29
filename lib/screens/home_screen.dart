@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/sleep_entry.dart';
-import '../services/sleep_service.dart';
+import '../models/sleep_record.dart';
+import '../services/health_service.dart';
 import '../widgets/card.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
@@ -14,7 +15,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final SleepService _sleepService = SleepService();
+  final HealthService _healthService = HealthService();
 
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = false;
@@ -28,14 +29,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadCached() async {
-    final List<SleepEntry> cached = await _sleepService.loadCachedEntries();
-    if (!mounted) {
-      return;
+    final DateTime now = DateTime.now();
+    final DateTime start =
+    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    try {
+      final List<SleepRecord> records = await _healthService.readSleep(
+        from: start,
+        to: now,
+      );
+      if (!mounted) {
+        return;
+      }
+      final List<SleepEntry> entries = SleepEntry.aggregateFromRecords(records);
+      setState(() {
+        _entries = entries;
+        _noData = entries.isEmpty;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _entries = <SleepEntry>[];
+        _noData = true;
+      });
     }
-    setState(() {
-      _entries = cached;
-      _noData = cached.isEmpty;
-    });
   }
 
   Future<void> _refresh() async {
@@ -45,18 +63,47 @@ class _HomeScreenState extends State<HomeScreen> {
       _noData = false;
     });
 
-    final SleepFetchResult result =
-    await _sleepService.refreshSleepEntries(context);
-    if (!mounted) {
+    final bool permissionGranted = await _healthService.requestPermissions();
+    if (!permissionGranted) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _permissionDenied = true;
+        _noData = _entries.isEmpty;
+      });
       return;
     }
 
-    setState(() {
-      _isLoading = false;
-      _permissionDenied = !result.permissionGranted;
-      _entries = result.entries;
-      _noData = result.permissionGranted && result.entries.isEmpty;
-    });
+    final DateTime now = DateTime.now();
+    final DateTime start =
+    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+
+    try {
+      final List<SleepRecord> records = await _healthService.readSleep(
+        from: start,
+        to: now,
+        forceRefresh: true,
+      );
+      final List<SleepEntry> entries = SleepEntry.aggregateFromRecords(records);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _entries = entries;
+        _noData = entries.isEmpty;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _noData = _entries.isEmpty;
+      });
+    }
   }
 
   SleepEntry? get _todayEntry {
@@ -198,36 +245,42 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            if (_entries.isEmpty)
-                              Text(
-                                'No tracked sleep yet. Tap refresh after a night of sleep.',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.white70,
+                            for (final SleepEntry entry in _entries)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                                  children: <Widget>[
+                                    Text(
+                                      _formatDay(context, entry.date),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${entry.totalHours.toStringAsFixed(1)} hrs',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              )
-                            else
-                              Column(
-                                children: _entries
-                                    .map(
-                                      (SleepEntry entry) => Padding(
-                                    padding:
-                                    const EdgeInsets.symmetric(vertical: 6),
-                                    child: _SleepSummaryRow(entry: entry),
-                                  ),
-                                )
-                                    .toList(),
                               ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 20),
+                      PrimaryButton(
+                        label: 'Refresh',
+                        onPressed: _refresh,
+                        isLoading: _isLoading,
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                PrimaryButton(
-                  label: 'Refresh',
-                  onPressed: _refresh,
-                  isLoading: _isLoading,
                 ),
               ],
             ),
@@ -240,56 +293,16 @@ class _HomeScreenState extends State<HomeScreen> {
   String _formatRange(BuildContext context, SleepEntry entry) {
     final MaterialLocalizations localizations =
     MaterialLocalizations.of(context);
-    final TimeOfDay start = TimeOfDay.fromDateTime(entry.start);
-    final TimeOfDay end = TimeOfDay.fromDateTime(entry.end);
-    return '${localizations.formatTimeOfDay(start)} – ${localizations.formatTimeOfDay(end)}';
+    final String start = localizations
+        .formatTimeOfDay(TimeOfDay.fromDateTime(entry.start));
+    final String end =
+    localizations.formatTimeOfDay(TimeOfDay.fromDateTime(entry.end));
+    return '$start – $end';
   }
-}
 
-class _SleepSummaryRow extends StatelessWidget {
-  const _SleepSummaryRow({required this.entry});
-
-  final SleepEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
+  String _formatDay(BuildContext context, DateTime date) {
     final MaterialLocalizations localizations =
     MaterialLocalizations.of(context);
-    final DateTime date = entry.date;
-    final String dateLabel =
-    localizations.formatMediumDate(DateTime(date.year, date.month, date.day));
-    final TimeOfDay start = TimeOfDay.fromDateTime(entry.start);
-    final TimeOfDay end = TimeOfDay.fromDateTime(entry.end);
-
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(
-                dateLabel,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${localizations.formatTimeOfDay(start)} – ${localizations.formatTimeOfDay(end)}',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        Text(
-          '${entry.totalHours.toStringAsFixed(1)} h',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
+    return localizations.formatMediumDate(date);
   }
 }

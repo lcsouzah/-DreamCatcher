@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/sleep_entry.dart';
-import '../services/sleep_service.dart';
+import '../models/sleep_record.dart';
+import '../services/health_service.dart';
 import '../widgets/card.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
@@ -16,7 +17,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final SleepService _sleepService = SleepService();
+  final HealthService _healthService = HealthService();
 
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = true;
@@ -29,15 +30,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _load() async {
-    final List<SleepEntry> cached = await _sleepService.loadCachedEntries();
-    if (!mounted) {
-      return;
+    final DateTime now = DateTime.now();
+    final DateTime start =
+    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    try {
+      final List<SleepRecord> records = await _healthService.readSleep(
+        from: start,
+        to: now,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
+        _isLoading = false;
+        _permissionDenied = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _entries = <SleepEntry>[];
+        _isLoading = false;
+        _permissionDenied = false;
+      });
     }
-    setState(() {
-      _entries = cached;
-      _isLoading = false;
-      _permissionDenied = false;
-    });
   }
 
   Future<void> _refresh() async {
@@ -46,16 +64,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _permissionDenied = false;
     });
 
-    final SleepFetchResult result =
-    await _sleepService.refreshSleepEntries(context);
-    if (!mounted) {
+    final bool permissionGranted = await _healthService.requestPermissions();
+    if (!permissionGranted) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _permissionDenied = true;
+      });
       return;
     }
-    setState(() {
-      _isLoading = false;
-      _permissionDenied = !result.permissionGranted;
-      _entries = result.entries;
-    });
+
+    final DateTime now = DateTime.now();
+    final DateTime start =
+    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+
+    try {
+      final List<SleepRecord> records = await _healthService.readSleep(
+        from: start,
+        to: now,
+        forceRefresh: true,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _shareCsv() async {
@@ -69,7 +114,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return;
     }
 
-    final String csv = _sleepService.exportToCsv(_entries);
+    final String csv = SleepEntry.exportToCsv(_entries);
     await Share.share(csv, subject: 'DreamCatcher sleep history');
   }
 
@@ -207,13 +252,16 @@ class _HistoryRow extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 range,
-                style: const TextStyle(color: Colors.white70),
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
@@ -226,7 +274,6 @@ class _HistoryRow extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        const Icon(Icons.chevron_right, color: Colors.white70),
       ],
     );
   }

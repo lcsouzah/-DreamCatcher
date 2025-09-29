@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'sleep_record.dart';
+
 class SleepEntry {
   SleepEntry({
     required this.date,
@@ -48,5 +50,71 @@ class SleepEntry {
     final List<Map<String, dynamic>> jsonList =
     entries.map((SleepEntry entry) => entry.toJson()).toList();
     return json.encode(jsonList);
+  }
+
+  static List<SleepEntry> aggregateFromRecords(List<SleepRecord> records,
+      {int limit = 7}) {
+    if (records.isEmpty) {
+      return <SleepEntry>[];
+    }
+
+    final Map<DateTime, List<SleepRecord>> grouped =
+    <DateTime, List<SleepRecord>>{};
+
+    for (final SleepRecord record in records) {
+      final DateTime bucket =
+      DateTime(record.start.year, record.start.month, record.start.day);
+      grouped.putIfAbsent(bucket, () => <SleepRecord>[]).add(record);
+    }
+
+    final List<SleepEntry> entries = grouped.entries.map((MapEntry<DateTime,
+        List<SleepRecord>> entry) {
+      final List<SleepRecord> dayRecords =
+      List<SleepRecord>.from(entry.value)
+        ..sort((SleepRecord a, SleepRecord b) =>
+            a.start.compareTo(b.start));
+
+      DateTime start = dayRecords.first.start;
+      DateTime end = dayRecords.first.end;
+      int totalMinutes = 0;
+
+      for (final SleepRecord record in dayRecords) {
+        if (record.start.isBefore(start)) {
+          start = record.start;
+        }
+        if (record.end.isAfter(end)) {
+          end = record.end;
+        }
+        totalMinutes += record.duration.inMinutes;
+      }
+
+      return SleepEntry(
+        date: entry.key,
+        start: start,
+        end: end,
+        totalMinutes: totalMinutes,
+      );
+    }).toList();
+
+    entries.sort((SleepEntry a, SleepEntry b) => b.date.compareTo(a.date));
+
+    if (limit <= 0) {
+      return entries;
+    }
+
+    return entries.take(limit).toList();
+  }
+
+  static String exportToCsv(List<SleepEntry> entries) {
+    final StringBuffer buffer = StringBuffer('Date,Start,End,Duration (hours)\n');
+    for (final SleepEntry entry in entries) {
+      buffer.writeln(
+        '${entry.date.toIso8601String()},'
+            '${entry.start.toIso8601String()},'
+            '${entry.end.toIso8601String()},'
+            '${entry.totalHours.toStringAsFixed(2)}',
+      );
+    }
+    return buffer.toString();
   }
 }
