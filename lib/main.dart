@@ -60,7 +60,7 @@ class PageControllerView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PageView(
-      children: [
+      children: const <Widget> [
         HomeScreen(),
         HistoryScreen(),
         WalletScreen(),

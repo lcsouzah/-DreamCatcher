@@ -15,13 +15,50 @@ class HealthService {
   ];
 
   Future<bool> requestPermissions(BuildContext context) async {
-    if (!await _ensureActivityPermission(context)) {
+    if (!await ensureActivityPermission(context)) {
       return false;
     }
 
+    return requestSleepAuthorization(context);
+  }
+
+  Future<bool> ensureActivityPermission(BuildContext context) async {
+    PermissionStatus status = await Permission.activityRecognition.status;
+    if (status.isGranted) {
+      return true;
+    }
+
+    status = await Permission.activityRecognition.request();
+    while (!status.isGranted) {
+      final _RationaleAction? action = await _showRationaleDialog(
+        context,
+        title: 'Allow activity recognition',
+        message:
+        'We use activity recognition to securely sync your nightly sleep from Google Fit.',
+        showSettings: status.isPermanentlyDenied,
+      );
+      if (action == _RationaleAction.retry) {
+        if (status.isPermanentlyDenied) {
+          await openAppSettings();
+        }
+        status = await Permission.activityRecognition.request();
+        continue;
+      }
+      if (action == _RationaleAction.settings) {
+        await openAppSettings();
+        status = await Permission.activityRecognition.request();
+        continue;
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<bool> requestSleepAuthorization(BuildContext context) async {
     bool granted = await _health.requestAuthorization(_sleepTypes);
     while (!granted) {
-      final action = await _showRationaleDialog(
+      final _RationaleAction? action = await _showRationaleDialog(
         context,
         title: 'Connect your sleep data',
         message:
@@ -53,37 +90,12 @@ class HealthService {
     );
   }
 
-  Future<bool> _ensureActivityPermission(BuildContext context) async {
-    PermissionStatus status = await Permission.activityRecognition.status;
-    if (status.isGranted) {
-      return true;
-    }
+  Future<bool> hasSleepPermission() async {
+    return (await _health.hasPermissions(_sleepTypes)) ?? false;
+  }
 
-    status = await Permission.activityRecognition.request();
-    while (!status.isGranted) {
-      final action = await _showRationaleDialog(
-        context,
-        title: 'Allow activity recognition',
-        message:
-        'We use activity recognition to securely sync your nightly sleep from Google Fit.',
-        showSettings: status.isPermanentlyDenied,
-      );
-      if (action == _RationaleAction.retry) {
-        if (status.isPermanentlyDenied) {
-          await openAppSettings();
-        }
-        status = await Permission.activityRecognition.request();
-        continue;
-      }
-      if (action == _RationaleAction.settings) {
-        await openAppSettings();
-        status = await Permission.activityRecognition.request();
-        continue;
-      }
-      return false;
-    }
-
-    return true;
+  Future<PermissionStatus> activityPermissionStatus() async {
+    return Permission.activityRecognition.status;
   }
 
   Future<_RationaleAction?> _showRationaleDialog(
@@ -101,16 +113,19 @@ class HealthService {
           content: Text(message),
           actions: <Widget>[
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(_RationaleAction.cancel),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_RationaleAction.cancel),
               child: const Text('Not now'),
             ),
             if (showSettings)
               TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(_RationaleAction.settings),
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(_RationaleAction.settings),
                 child: const Text('Open settings'),
               ),
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(_RationaleAction.retry),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(_RationaleAction.retry),
               child: const Text('Try again'),
             ),
           ],
