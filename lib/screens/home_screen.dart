@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:health/health.dart';
-import 'package:permission_handler/permission_handler.dart';
+import '../services/health_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -10,39 +9,27 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final Health _health = Health(); // ✅ Correct for v13+
+  final HealthService _healthService = HealthService();
   String _sleepResult = "Fetching sleep data...";
 
   Future<void> _fetchSleepData() async {
-    // ✅ Runtime permission for Android 10+
-    if (await Permission.activityRecognition.request().isDenied) {
-      setState(() {
-        _sleepResult = "Activity Recognition permission denied";
-      });
-      return;
-    }
-
     final now = DateTime.now();
     final yesterday = now.subtract(const Duration(days: 1));
 
-    final types = [
-      HealthDataType.SLEEP_ASLEEP,
-      HealthDataType.SLEEP_DEEP,
-      HealthDataType.SLEEP_REM,
-    ];
+    final bool permissionsGranted =
+    await _healthService.requestPermissions(context);
 
-    bool granted = await _health.requestAuthorization(types);
-
-    if (!granted) {
-      setState(() => _sleepResult = "Google Fit permission not granted");
+    if (!permissionsGranted) {
+      setState(() =>
+      _sleepResult =
+      "Health permissions required to calculate your rewards");
       return;
     }
 
     try {
-      final healthData = await _health.getHealthDataFromTypes(
-        types: types,
-        startTime: yesterday,
-        endTime: now,
+      final healthData = await _healthService.getSleepData(
+        start: yesterday,
+        end: now,
       );
 
       double totalMinutes = 0;
@@ -66,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // ✅ Delay avoids "Permission launcher not found" issue
     Future.delayed(const Duration(milliseconds: 500), _fetchSleepData);
   }
+
 
   @override
   Widget build(BuildContext context) {
