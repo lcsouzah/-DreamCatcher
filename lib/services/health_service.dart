@@ -46,16 +46,11 @@ class HealthService {
   }
 
   Future<bool> requestPermissions() async {
-    if (!await _ensureActivityPermission()) {
+    if (!await ensureActivityPermission()) {
       return false;
     }
 
-    final List<HealthDataType> primaryTypes = await _preferredTypes();
-    bool granted = await _health.requestAuthorization(primaryTypes);
-    if (!granted && !_sameTypes(primaryTypes, _googleFitTypes)) {
-      granted = await _health.requestAuthorization(_googleFitTypes);
-    }
-    return granted;
+    return requestSleepAuthorization();
   }
 
   Future<List<SleepRecord>> readSleep({
@@ -142,7 +137,7 @@ class HealthService {
     return Permission.activityRecognition.status;
   }
 
-  Future<bool> _ensureActivityPermission() async {
+  Future<bool> ensureActivityPermission() async {
     PermissionStatus status = await Permission.activityRecognition.status;
     if (status.isGranted) {
       return true;
@@ -159,6 +154,15 @@ class HealthService {
     }
 
     return status.isGranted;
+  }
+
+  Future<bool> requestSleepAuthorization() async {
+    final List<HealthDataType> primaryTypes = await _preferredTypes();
+    bool granted = await _health.requestAuthorization(primaryTypes);
+    if (!granted && !_sameTypes(primaryTypes, _googleFitTypes)) {
+      granted = await _health.requestAuthorization(_googleFitTypes);
+    }
+    return granted;
   }
 
   Future<List<SleepRecord>?> _tryFallback({

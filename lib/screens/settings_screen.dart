@@ -96,12 +96,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _requestActivityPermission() async {
-    await _healthService.ensureActivityPermission(context);
+    await _healthService.ensureActivityPermission();
     await _refreshPermissions();
   }
 
   Future<void> _requestSleepPermission() async {
-    await _healthService.requestSleepAuthorization(context);
+    await _healthService.requestSleepAuthorization();
     await _refreshPermissions();
   }
 
