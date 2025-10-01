@@ -42,7 +42,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (!mounted) {
         return;
       }
-      final permissionsGranted = await _healthService.requestPermissions(context);
+      final permissionsGranted = await _healthService.requestPermissions();
       if (!permissionsGranted) {
         if (!mounted) {
           return;
