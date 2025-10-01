@@ -220,7 +220,7 @@ class HealthService {
       return preferred;
     }
     if (!_sameTypes(preferred, _googleFitTypes) &&
-        (await _health.hasPermissions(_googleFitTypes)) ?? false) {
+        ((await _health.hasPermissions(_googleFitTypes)) ?? false)) {
       return _googleFitTypes;
     }
     return null;
