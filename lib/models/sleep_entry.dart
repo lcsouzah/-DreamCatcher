@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'sleep_record.dart';
 
 class SleepEntry {
@@ -8,15 +7,16 @@ class SleepEntry {
     required this.start,
     required this.end,
     required this.totalMinutes,
+    required this.records, // 👈 added field
   });
 
   final DateTime date;
   final DateTime start;
   final DateTime end;
   final int totalMinutes;
+  final List<SleepRecord> records; // 👈 keeps raw stage data for detail screen
 
   double get totalHours => totalMinutes / 60.0;
-
   Duration get duration => Duration(minutes: totalMinutes);
 
   Map<String, dynamic> toJson() {
@@ -25,24 +25,29 @@ class SleepEntry {
       'start': start.toIso8601String(),
       'end': end.toIso8601String(),
       'totalMinutes': totalMinutes,
+      'records': records.map((r) => r.toJson()).toList(), // 👈 added
     };
   }
 
   factory SleepEntry.fromJson(Map<String, dynamic> json) {
+    final List<SleepRecord> recs = (json['records'] as List?)
+        ?.map((e) => SleepRecord.fromJson(Map<String, dynamic>.from(e)))
+        .toList() ??
+        <SleepRecord>[];
     return SleepEntry(
       date: DateTime.parse(json['date'] as String),
       start: DateTime.parse(json['start'] as String),
       end: DateTime.parse(json['end'] as String),
       totalMinutes: json['totalMinutes'] as int,
+      records: recs,
     );
   }
 
   static List<SleepEntry> listFromJsonString(String jsonString) {
-    final Iterable<dynamic> decoded =
-    json.decode(jsonString) as Iterable<dynamic>;
+    final Iterable<dynamic> decoded = json.decode(jsonString) as Iterable<dynamic>;
     return decoded
-        .map((dynamic item) => SleepEntry.fromJson(
-        Map<String, dynamic>.from(item as Map<dynamic, dynamic>)))
+        .map((dynamic item) =>
+        SleepEntry.fromJson(Map<String, dynamic>.from(item as Map<dynamic, dynamic>)))
         .toList();
   }
 
@@ -52,39 +57,27 @@ class SleepEntry {
     return json.encode(jsonList);
   }
 
-  static List<SleepEntry> aggregateFromRecords(List<SleepRecord> records,
-      {int limit = 7}) {
-    if (records.isEmpty) {
-      return <SleepEntry>[];
-    }
+  static List<SleepEntry> aggregateFromRecords(List<SleepRecord> records, {int limit = 7}) {
+    if (records.isEmpty) return <SleepEntry>[];
 
-    final Map<DateTime, List<SleepRecord>> grouped =
-    <DateTime, List<SleepRecord>>{};
+    final Map<DateTime, List<SleepRecord>> grouped = {};
 
     for (final SleepRecord record in records) {
-      final DateTime bucket =
-      DateTime(record.start.year, record.start.month, record.start.day);
+      final DateTime bucket = DateTime(record.start.year, record.start.month, record.start.day);
       grouped.putIfAbsent(bucket, () => <SleepRecord>[]).add(record);
     }
 
-    final List<SleepEntry> entries = grouped.entries.map((MapEntry<DateTime,
-        List<SleepRecord>> entry) {
-      final List<SleepRecord> dayRecords =
-      List<SleepRecord>.from(entry.value)
-        ..sort((SleepRecord a, SleepRecord b) =>
-            a.start.compareTo(b.start));
+    final List<SleepEntry> entries = grouped.entries.map((MapEntry<DateTime, List<SleepRecord>> entry) {
+      final List<SleepRecord> dayRecords = List<SleepRecord>.from(entry.value)
+        ..sort((a, b) => a.start.compareTo(b.start));
 
       DateTime start = dayRecords.first.start;
-      DateTime end = dayRecords.first.end;
+      DateTime end = dayRecords.last.end;
       int totalMinutes = 0;
 
       for (final SleepRecord record in dayRecords) {
-        if (record.start.isBefore(start)) {
-          start = record.start;
-        }
-        if (record.end.isAfter(end)) {
-          end = record.end;
-        }
+        if (record.start.isBefore(start)) start = record.start;
+        if (record.end.isAfter(end)) end = record.end;
         totalMinutes += record.duration.inMinutes;
       }
 
@@ -93,16 +86,15 @@ class SleepEntry {
         start: start,
         end: end,
         totalMinutes: totalMinutes,
+        records: dayRecords, // 👈 include this day’s full data
       );
     }).toList();
 
-    entries.sort((SleepEntry a, SleepEntry b) => b.date.compareTo(a.date));
-
-    if (limit <= 0) {
-      return entries;
+    entries.sort((a, b) => b.date.compareTo(a.date));
+    if (limit > 0 && entries.length > limit) {
+      return entries.take(limit).toList();
     }
-
-    return entries.take(limit).toList();
+    return entries;
   }
 
   static String exportToCsv(List<SleepEntry> entries) {

@@ -7,3 +7,7 @@ class StorageKeys {
   static const String enableSupabase = 'enableSupabase';
   static const String enableDebugLogging = 'enableDebugLogging';
 }
+
+/// Google OAuth Client ID for DreamCatcher (Google Fit integration)
+const String kGoogleFitClientId =
+    "890943023129-al2a6bq1n9l3em7abhsfi1pmvkg60o9p.apps.googleusercontent.com";

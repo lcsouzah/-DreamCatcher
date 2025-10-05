@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,63 +19,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final AuthService _authService = AuthService();
   final HealthService _healthService = HealthService();
 
-  bool _isProcessing = false;
+  bool _isLoading = false;
   String? _errorMessage;
-
-  Future<void> _handleContinue() async {
-    setState(() {
-      _isProcessing = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final profile = await _authService.signInWithGoogle();
-      if (profile == null) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _errorMessage = 'Sign-in was cancelled. Please try again to continue.';
-        });
-        return;
-      }
-
-      if (!mounted) {
-        return;
-      }
-      final permissionsGranted = await _healthService.requestPermissions();
-      if (!permissionsGranted) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _errorMessage =
-          'Health permissions are required so DreamCatcher can sync your sleep.';
-        });
-        return;
-      }
-
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(StorageKeys.onboardingComplete, true);
-
-      if (!mounted) {
-        return;
-      }
-      widget.onFinished();
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Something went wrong. Please try again.\n$error';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +28,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+            colors: [Color(0xFF1A1447), Color(0xFF2C1E5D)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -113,7 +59,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
                 const SizedBox(height: 32),
                 Card(
-                  color: Colors.white10,
+                  color: Colors.white.withOpacity(0.08),
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -164,26 +110,130 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
+                    icon: const Icon(Icons.favorite, color: Colors.white),
+                    label: const Text("Continue with Google"),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
+                      backgroundColor: const Color(0xFF7C3AED),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: _isProcessing ? null : _handleContinue,
-                    icon: _isProcessing
-                        ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                        : const Icon(Icons.login),
-                    label: Text(
-                      _isProcessing ? 'Connecting…' : 'Continue with Google',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
+                    onPressed: _isLoading
+                        ? null
+                        : () async {
+                      setState(() => _isLoading = true);
+
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                          child: Dialog(
+                            backgroundColor: Colors.white.withOpacity(0.1),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Container(
+                              width: 240,
+                              padding: const EdgeInsets.all(28),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0x802C1E5D), Color(0x803A1675)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.deepPurpleAccent.withOpacity(0.4),
+                                    blurRadius: 16,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                                border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Spinner
+                                  const CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.deepPurpleAccent,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+
+                                  // Rotating DreamCatcher icon animation
+                                  AnimatedRotation(
+                                    duration: const Duration(seconds: 6),
+                                    turns: 1,
+                                    curve: Curves.linear,
+                                    child: Image.asset(
+                                      'assets/logo/dreamcatcher_logo.png', // 🔮 your DreamCatcher logo
+                                      height: 56,
+                                      width: 56,
+                                      color: Colors.white.withOpacity(0.9),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // Text
+                                  const Text(
+                                    "Connecting to Google Fit...",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                      final granted =
+                      await _healthService.requestPermissions();
+
+                      if (!context.mounted) return;
+                      Navigator.of(context).pop(); // Close overlay
+                      setState(() => _isLoading = false);
+
+                      if (granted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "✅ Permissions granted! Syncing sleep data...",
+                            ),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+
+                        final prefs =
+                        await SharedPreferences.getInstance();
+                        await prefs.setBool(
+                            StorageKeys.onboardingComplete, true);
+
+                        widget.onFinished();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "❌ Health permissions are required so DreamCatcher can sync your sleep.",
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ),
                 const SizedBox(height: 16),

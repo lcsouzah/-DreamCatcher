@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
 import '../models/sleep_entry.dart';
+import '../models/sleep_record.dart';
 import '../widgets/card.dart';
 
 class SleepDetailScreen extends StatelessWidget {
@@ -10,32 +10,21 @@ class SleepDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final MaterialLocalizations localizations =
-    MaterialLocalizations.of(context);
-    final Duration duration = entry.duration;
-    final int hours = duration.inHours;
-    final int minutes = duration.inMinutes.remainder(60);
-    final String dayLabel = localizations.formatFullDate(entry.date);
-    final String start = localizations.formatTimeOfDay(
-      TimeOfDay.fromDateTime(entry.start),
-    );
-    final String end = localizations.formatTimeOfDay(
-      TimeOfDay.fromDateTime(entry.end),
-    );
+    final ThemeData theme = Theme.of(context);
+    final List<SleepRecord> records = entry.records;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Sleep details'),
-      ),
       body: Stack(
-        children: <Widget>[
+        children: [
           Positioned.fill(
-            child: Image.asset(
-              'assets/screens/history_bg.png',
-              fit: BoxFit.cover,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
             ),
           ),
           SafeArea(
@@ -43,36 +32,72 @@ class SleepDetailScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    dayLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Sleep Detail',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   DreamCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        _DetailRow(label: 'Start', value: start),
-                        const SizedBox(height: 12),
-                        _DetailRow(label: 'End', value: end),
-                        const Divider(height: 32, color: Colors.white12),
-                        _DetailRow(
-                          label: 'Duration',
-                          value: '${entry.totalHours.toStringAsFixed(2)} hours',
+                      children: [
+                        Text(
+                          _formatDate(context, entry.date),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '≈ ${hours}h ${minutes}m of tracked rest',
-                          style: const TextStyle(color: Colors.white54),
+                          "${entry.totalHours.toStringAsFixed(1)} hrs total",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    "Sleep stages",
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 🟪 Stage timeline visualization
+                  Expanded(
+                    child: DreamCard(
+                      padding: const EdgeInsets.all(16),
+                      child: CustomPaint(
+                        painter: _SleepTimelinePainter(records),
+                        child: Container(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 💤 Legend
+                  _buildLegend(theme),
                 ],
               ),
             ),
@@ -81,35 +106,89 @@ class SleepDetailScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+  Widget _buildLegend(ThemeData theme) {
+    const legendItems = [
+      {'color': Color(0xFF9B5DE5), 'label': 'REM'},
+      {'color': Color(0xFF00BBF9), 'label': 'Light'},
+      {'color': Color(0xFF00F5D4), 'label': 'Deep'},
+      {'color': Color(0xFFFFB5A7), 'label': 'Awake'},
+    ];
 
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: <Widget>[
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 16,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: legendItems
+          .map((item) => Row(
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: item['color'] as Color,
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+          const SizedBox(width: 6),
+          Text(
+            item['label'] as String,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+            ),
           ),
-        ),
-      ],
+        ],
+      ))
+          .toList(),
     );
   }
+
+  String _formatDate(BuildContext context, DateTime date) {
+    final MaterialLocalizations localizations =
+    MaterialLocalizations.of(context);
+    return localizations.formatFullDate(date);
+  }
+}
+
+/// 🎨 Paints a colorful timeline based on mock sleep records.
+class _SleepTimelinePainter extends CustomPainter {
+  _SleepTimelinePainter(this.records);
+
+  final List<SleepRecord> records;
+
+  final Map<String, Color> stageColors = const {
+    'rem': Color(0xFF9B5DE5),
+    'light': Color(0xFF00BBF9),
+    'deep': Color(0xFF00F5D4),
+    'awake': Color(0xFFFFB5A7),
+  };
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double totalDurationMinutes = records.fold(
+      0.0,
+          (sum, r) => sum + r.end.difference(r.start).inMinutes.toDouble(),
+    );
+
+    if (totalDurationMinutes == 0) return;
+
+    double x = 0;
+    for (final record in records) {
+      final double durationMinutes =
+      record.end.difference(record.start).inMinutes.toDouble();
+      final double segmentWidth =
+          (durationMinutes / totalDurationMinutes) * size.width;
+
+      final paint = Paint()
+        ..color = stageColors[record.type.toLowerCase()] ?? Colors.grey
+        ..style = PaintingStyle.fill;
+
+      final rect = Rect.fromLTWH(x, 0, segmentWidth, size.height);
+      final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
+      canvas.drawRRect(rrect, paint);
+      x += segmentWidth + 2; // small gap
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SleepTimelinePainter oldDelegate) => true;
 }
