@@ -499,6 +499,11 @@ class HealthConnectService {
   // ---------------------------------------------------------------------------
   // 🔹 Utilities
   // ---------------------------------------------------------------------------
+  /// Confirms the Health Connect provider is present before attempting to
+  /// create a manager instance. This relies on the manifest `queries` entries
+  /// for `com.google.android.apps.healthdata` and
+  /// `com.google.android.healthconnect.controller`, ensuring package discovery
+  /// succeeds on both standalone and system-integrated installs.
   Future<bool> _isHealthConnectAvailable() async {
     final List<dynamic> checks = <dynamic>[
       _tryCall<dynamic>(() => _factory.isApiSupported()),
