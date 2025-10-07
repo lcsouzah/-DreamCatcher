@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/sleep_entry.dart';
 import '../models/sleep_record.dart';
 import '../services/health_connect_service.dart';
+import '../services/reward_service.dart';
 import '../widgets/card.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
@@ -16,16 +17,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final HealthConnectService _healthService = HealthConnectService();
+  final RewardService _rewardService = RewardService();
+
 
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = false;
   bool _permissionDenied = false;
   bool _noData = false;
+  RewardSnapshot? _rewardSnapshot;
+  bool _isLoadingRewards = false;
+
 
   @override
   void initState() {
     super.initState();
     _loadCached();
+    _loadMockRewards();
     // user must tap Refresh button to request Health Connect permission
   }
 
@@ -53,6 +60,30 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
+
+  Future<void> _loadMockRewards() async {
+    setState(() {
+      _isLoadingRewards = true;
+    });
+
+    try {
+      final RewardSnapshot snapshot =
+      await _rewardService.fetchRewardSnapshot();
+      if (!mounted) return;
+      setState(() {
+        _rewardSnapshot = snapshot;
+        _isLoadingRewards = false;
+      });
+    } catch (error) {
+      debugPrint('[DreamCatcher] ⚠️ Failed to load mock rewards: $error');
+      if (!mounted) return;
+      setState(() {
+        _rewardSnapshot = null;
+        _isLoadingRewards = false;
+      });
+    }
+  }
+
 
   Future<void> _refresh() async {
     setState(() {
@@ -244,34 +275,76 @@ class _HomeScreenState extends State<HomeScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: <Widget>[
                                   const Text(
-                                    "Today's sleep",
+                                    'Dream rewards',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 18,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  Text(
-                                    today != null
-                                        ? '${today.totalHours.toStringAsFixed(1)} hrs'
-                                        : '--',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
+                                  if (!_isLoadingRewards && _rewardSnapshot != null)
+                                    Text(
+                                      '${_rewardSnapshot!.totalDreamEarned.toStringAsFixed(2)} DREAM',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                  ),
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              Text(
-                                today != null
-                                    ? _formatRange(context, today)
-                                    : 'Start a sleep session to see your stats.',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.white70,
+                              if (_isLoadingRewards)
+                                const Center(
+                                  child: SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  ),
+                                )
+                              else if (_rewardSnapshot != null)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      '≈ \$${_rewardService.convertDreamToUsd(_rewardSnapshot!.totalDreamEarned).toStringAsFixed(2)} USD total',
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Pending: ${_rewardSnapshot!.pendingDream.toStringAsFixed(2)} DREAM',
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Current streak: ${_rewardSnapshot!.sleepStreak} nights',
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Earned this week: ${_rewardSnapshot!.weeklyDreamEarned.toStringAsFixed(2)} DREAM',
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                Text(
+                                  'Unable to load rewards. Try refreshing soon.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: Colors.red[200],
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
