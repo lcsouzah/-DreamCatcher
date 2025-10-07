@@ -3,7 +3,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/sleep_entry.dart';
 import '../models/sleep_record.dart';
-import '../services/health_service.dart';
+import '../services/health_connect_service.dart';
 import '../widgets/card.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
@@ -17,7 +17,7 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final HealthService _healthService = HealthService();
+  final HealthConnectService _healthService = HealthConnectService();
 
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = true;
@@ -64,7 +64,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _permissionDenied = false;
     });
 
-    final bool permissionGranted = await _healthService.requestPermissions();
+    bool permissionGranted = false;
+    try {
+      permissionGranted = await _healthService.requestPermissions();
+    } on HealthConnectUnavailableException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _permissionDenied = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${error.message} Please install or enable Health Connect.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     if (!permissionGranted) {
       if (!mounted) {
         return;

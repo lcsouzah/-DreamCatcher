@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/auth_service.dart';
-import '../services/health_service.dart';
+import '../services/health_connect_service.dart';
 import '../services/storage_keys.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -17,7 +17,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final AuthService _authService = AuthService();
-  final HealthService _healthService = HealthService();
+  final HealthConnectService _healthService = HealthConnectService();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -87,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         _OnboardingBullet(
                           icon: Icons.health_and_safety_outlined,
                           text:
-                          'Read last night\'s sleep from Google Fit to calculate rewards.',
+                          'Read last night\'s sleep from Health Connect to calculate rewards.',
                         ),
                         SizedBox(height: 12),
                         _OnboardingBullet(
@@ -185,7 +185,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                                   // Text
                                   const Text(
-                                    "Connecting to Google Fit...",
+                                    "Connecting to Health Connect...",
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: Colors.white,
@@ -200,8 +200,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                       );
-                      final granted =
-                      await _healthService.requestPermissions();
+                      bool granted = false;
+                      try {
+                        granted = await _healthService.requestPermissions();
+                      } on HealthConnectUnavailableException catch (error) {
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
+                        setState(() => _isLoading = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${error.message} Please install or enable Health Connect.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
 
                       if (!context.mounted) return;
                       Navigator.of(context).pop(); // Close overlay

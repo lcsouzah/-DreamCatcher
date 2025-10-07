@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:health/health.dart';
+
 
 class SleepRecord {
   SleepRecord({
@@ -9,18 +9,7 @@ class SleepRecord {
     required this.type,
   }) : duration = end.difference(start);
 
-  /// Create from HealthDataPoint (used when reading from Google Fit)
-  factory SleepRecord.fromHealthDataPoint(HealthDataPoint point) {
-    final String parsedType =
-    point.typeString.split('.').last.toLowerCase(); // e.g. sleep_rem → rem
 
-    return SleepRecord(
-      start: point.dateFrom,
-      end: point.dateTo,
-      source: point.sourceName ?? point.sourceId ?? 'Unknown',
-      type: parsedType,
-    );
-  }
 
   /// Deserialize from JSON (used when loading cached data)
   factory SleepRecord.fromJson(Map<String, dynamic> json) {

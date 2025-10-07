@@ -3,7 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/health_service.dart';
+import '../services/health_connect_service.dart';
 import '../services/storage_keys.dart';
 import '../widgets/card.dart';
 import '../widgets/permission_pill.dart';
@@ -17,7 +17,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final HealthService _healthService = HealthService();
+  final HealthConnectService _healthService = HealthConnectService();
 
   bool _activityGranted = false;
   bool _activityPermanentlyDenied = false;
@@ -101,7 +101,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _requestSleepPermission() async {
-    await _healthService.requestSleepAuthorization();
+    try {
+      await _healthService.requestSleepAuthorization();
+    } on HealthConnectUnavailableException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${error.message} Please install or enable Health Connect.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
     await _refreshPermissions();
   }
 
@@ -191,7 +203,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 12),
                               PermissionPill(
-                                label: 'Google Fit sleep data',
+                                label: 'Health Connect sleep data',
                                 status:
                                 _sleepGranted ? 'Granted' : 'Not granted',
                                 statusColor: _sleepGranted

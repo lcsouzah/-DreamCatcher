@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/sleep_entry.dart';
 import '../models/sleep_record.dart';
-import '../services/health_service.dart';
+import '../services/health_connect_service.dart';
 import '../widgets/card.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
@@ -15,7 +15,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final HealthService _healthService = HealthService();
+  final HealthConnectService _healthService = HealthConnectService();
 
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = false;
@@ -26,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadCached();
-    // user must tap Refresh button to request Google Fit permission
+    // user must tap Refresh button to request Health Connect permission
   }
 
 
@@ -63,7 +63,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
     debugPrint("[DreamCatcher] 🔄 Starting refresh... requesting permissions");
 
-    final bool permissionGranted = await _healthService.requestPermissions();
+    bool permissionGranted = false;
+    try {
+      permissionGranted = await _healthService.requestPermissions();
+    } on HealthConnectUnavailableException catch (error) {
+      debugPrint('[DreamCatcher] ❌ $error');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _permissionDenied = true;
+        _noData = _entries.isEmpty;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${error.message} Please install or enable Health Connect.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     debugPrint("[DreamCatcher] Permission result: $permissionGranted");
 
@@ -78,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("❌ Google Fit permission not granted"),
+          content: Text("❌ Health Connect permission not granted"),
           backgroundColor: Colors.red,
         ),
       );
@@ -209,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (_noData && !_permissionDenied)
                     const ErrorBanner(
                       message:
-                      'No data found. Sync with Google Fit to start earning for your sleep.',
+                      'No data found. Sync with Health Connect to start earning for your sleep.',
                       icon: Icons.bedtime,
                       backgroundColor: Color(0xFF1E2F3B),
                     ),
@@ -342,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       SizedBox(height: 16),
                       Text(
-                        "Syncing with Google Fit...",
+                        "Syncing with Health Connect...",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
