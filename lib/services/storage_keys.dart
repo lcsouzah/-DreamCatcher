@@ -4,8 +4,9 @@ class StorageKeys {
   static const String onboardingComplete = 'hasCompletedOnboarding';
   static const String cachedSleepEntries = 'cachedSleepEntries';
   static const String cachedSleepRecords = 'cachedSleepRecords';
-  static const String enableSupabase = 'enableSupabase';
-  static const String enableDebugLogging = 'enableDebugLogging';
+  static const String enableNotifications = 'enableNotifications';
+  static const String darkModeAccentIntensity = 'darkModeAccentIntensity';
+  static const String healthConnectAutoSync = 'healthConnectAutoSync';
 }
 
 /// Google OAuth Client ID for DreamCatcher (Google Fit integration)

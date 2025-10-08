@@ -24,8 +24,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _sleepGranted = false;
   bool _loadingPermissions = true;
 
-  bool _supabaseEnabled = false;
-  bool _debugEnabled = false;
+  bool _notificationsEnabled = false;
+  bool _darkModeAccentIntensityEnabled = false;
+  bool _healthConnectAutoSyncEnabled = false;
 
   String _appVersion = 'Loading…';
   String _buildNumber = '';
@@ -50,10 +51,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     setState(() {
       _prefs = prefs;
-      _supabaseEnabled =
-          prefs.getBool(StorageKeys.enableSupabase) ?? false;
-      _debugEnabled =
-          prefs.getBool(StorageKeys.enableDebugLogging) ?? false;
+      _notificationsEnabled =
+          prefs.getBool(StorageKeys.enableNotifications) ?? false;
+      _darkModeAccentIntensityEnabled =
+          prefs.getBool(StorageKeys.darkModeAccentIntensity) ?? false;
+      _healthConnectAutoSyncEnabled =
+          prefs.getBool(StorageKeys.healthConnectAutoSync) ?? false;
       _appVersion = packageInfo.version;
       _buildNumber = packageInfo.buildNumber;
       _applyPermissionStatus(permissionStatus);
@@ -117,23 +120,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _refreshPermissions();
   }
 
-  Future<void> _toggleSupabase(bool value) async {
+  Future<void> _toggleNotifications(bool value) async {
     final SharedPreferences prefs =
         _prefs ?? await SharedPreferences.getInstance();
-    await prefs.setBool(StorageKeys.enableSupabase, value);
+    await prefs.setBool(StorageKeys.enableNotifications, value);
     setState(() {
       _prefs = prefs;
-      _supabaseEnabled = value;
+      _notificationsEnabled = value;
     });
   }
 
-  Future<void> _toggleDebug(bool value) async {
+  Future<void> _toggleDarkModeAccentIntensity(bool value) async {
     final SharedPreferences prefs =
         _prefs ?? await SharedPreferences.getInstance();
-    await prefs.setBool(StorageKeys.enableDebugLogging, value);
+    await prefs.setBool(StorageKeys.darkModeAccentIntensity, value);
     setState(() {
       _prefs = prefs;
-      _debugEnabled = value;
+      _darkModeAccentIntensityEnabled = value;
+    });
+  }
+
+  Future<void> _toggleHealthConnectAutoSync(bool value) async {
+    final SharedPreferences prefs =
+        _prefs ?? await SharedPreferences.getInstance();
+    await prefs.setBool(StorageKeys.healthConnectAutoSync, value);
+    setState(() {
+      _prefs = prefs;
+      _healthConnectAutoSyncEnabled = value;
     });
   }
 
@@ -239,15 +252,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(height: 12),
                             _ToggleSwitch(
-                              label: 'Enable Supabase integration',
-                              value: _supabaseEnabled,
-                              onChanged: _toggleSupabase,
+                              label: 'Enable notifications',
+                              value: _notificationsEnabled,
+                              onChanged: _toggleNotifications,
                             ),
                             const SizedBox(height: 12),
                             _ToggleSwitch(
-                              label: 'Enable debug logging',
-                              value: _debugEnabled,
-                              onChanged: _toggleDebug,
+                              label: 'Stronger dark-mode accent colors',
+                              value: _darkModeAccentIntensityEnabled,
+                              onChanged: _toggleDarkModeAccentIntensity,
+                            ),
+                            const SizedBox(height: 12),
+                            _ToggleSwitch(
+                              label: 'Auto-sync sleep data with Health Connect',
+                              value: _healthConnectAutoSyncEnabled,
+                              onChanged: _toggleHealthConnectAutoSync,
                             ),
                           ],
                         ),
