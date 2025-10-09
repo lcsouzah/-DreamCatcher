@@ -28,6 +28,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = false;
   bool _darkModeAccentIntensityEnabled = false;
   bool _healthConnectAutoSyncEnabled = false;
+  bool _supabaseEnabled = false;
+  bool _debugEnabled = false;
+
 
   String _appVersion = 'Loading…';
   String _buildNumber = '';
@@ -58,6 +61,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           prefs.getBool(StorageKeys.darkModeAccentIntensity) ?? false;
       _healthConnectAutoSyncEnabled =
           prefs.getBool(StorageKeys.healthConnectAutoSync) ?? false;
+      _supabaseEnabled = prefs.getBool(StorageKeys.enableSupabase) ?? false;
+      _debugEnabled =
+          prefs.getBool(StorageKeys.enableDebugLogging) ?? false;
       _appVersion = packageInfo.version;
       _buildNumber = packageInfo.buildNumber;
       _applyPermissionStatus(permissionStatus);

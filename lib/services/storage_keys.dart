@@ -7,6 +7,8 @@ class StorageKeys {
   static const String enableNotifications = 'enableNotifications';
   static const String darkModeAccentIntensity = 'darkModeAccentIntensity';
   static const String healthConnectAutoSync = 'healthConnectAutoSync';
+  static const String enableSupabase = 'enableSupabase';
+  static const String enableDebugLogging = 'enableDebugLogging';
 }
 
 /// Google OAuth Client ID for DreamCatcher (Google Fit integration)
