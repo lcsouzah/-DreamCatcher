@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 import '../services/reward_service.dart';
 import '../services/wallet_service.dart';
+import '../themes/app_theme.dart';
 import '../widgets/card.dart';
+import '../widgets/primary_button.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -109,27 +111,27 @@ class _WalletScreenState extends State<WalletScreen> {
     if (streak >= 12) {
       return const _StreakBadgeStyle(
         icon: Icons.auto_awesome,
-        gradient: <Color>[Color(0xFFFF8A80), Color(0xFFFF5F6D)],
+        gradientKey: _StreakGradientTone.legendary,
         label: 'Legendary focus',
       );
     }
     if (streak >= 7) {
       return const _StreakBadgeStyle(
         icon: Icons.local_fire_department,
-        gradient: <Color>[Color(0xFFFFD180), Color(0xFFFF8F00)],
+        gradientKey: _StreakGradientTone.hotStreak,
         label: 'On a hot streak',
       );
     }
     if (streak >= 3) {
       return const _StreakBadgeStyle(
         icon: Icons.nightlight_round,
-        gradient: <Color>[Color(0xFF80DEEA), Color(0xFF5E72EB)],
+        gradientKey: _StreakGradientTone.findingRhythm,
         label: 'Finding rhythm',
       );
     }
     return const _StreakBadgeStyle(
       icon: Icons.bedtime,
-      gradient: <Color>[Color(0xFF7B61FF), Color(0xFF4E54C8)],
+      gradientKey: _StreakGradientTone.keepGoing,
       label: 'Keep it going',
     );
   }
@@ -161,6 +163,10 @@ class _WalletScreenState extends State<WalletScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final TextTheme textTheme = theme.textTheme;
+    final ColorScheme colors = theme.colorScheme;
+    final DreamGradients gradients =
+        theme.extension<DreamGradients>() ?? DreamGradients.fallback;
     final WalletSnapshot? snapshot = _snapshot;
     final bool hasMultiplier = _streakMultiplier != null && _streakBadgeStyle != null;
     final bool hasLoadedData =
@@ -168,140 +174,119 @@ class _WalletScreenState extends State<WalletScreen> {
     final bool isConnected = snapshot?.isWalletConnected ?? false;
     final double claimableAmount = snapshot?.claimableDream ?? 0;
     final bool canClaim = hasLoadedData && claimableAmount > 0;
+    VoidCallback? primaryAction;
 
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: Image.asset(
-            'assets/screens/wallet_bg.png',
-            fit: BoxFit.cover,
-          ),
-        ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  'Wallet',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
+    if (!isConnected) {
+      if (hasLoadedData && !_isProcessingAction) {
+        primaryAction = _connectWallet;
+      }
+    } else if (canClaim && !_isProcessingAction) {
+      primaryAction = _claimRewards;
+    }
+
+    final String primaryLabel = !isConnected
+        ? 'Connect Wallet'
+        : canClaim
+        ? 'Claim Reward'
+        : 'Wallet Connected';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(gradient: gradients.wallet),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Wallet', style: textTheme.displaySmall),
+              const SizedBox(height: 24),
+              DreamCard(
+                child: _isLoading
+                    ? Center(
+                  child: SizedBox(
+                    height: 28,
+                    width: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                      AlwaysStoppedAnimation<Color>(colors.onPrimary),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                DreamCard(
-                  child: _isLoading
-                      ? const Center(
-                    child: SizedBox(
-                      height: 28,
-                      width: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor:
-                        AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                  )
-                      : snapshot == null
-                      ? const Text(
-                    'Unable to load wallet. Please try again shortly.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
-                  )
-                      : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                              children: <Widget>[
-                                const Text(
-                                  'Balance',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                )
+                    : snapshot == null
+                    ? Text(
+                  'Unable to load wallet. Please try again shortly.',
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                )
+                    : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text('Balance', style: textTheme.titleMedium),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${snapshot.totalDream.toStringAsFixed(2)} DREAM',
+                                style: textTheme.headlineSmall?.copyWith(
+                                  letterSpacing: 0.4,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${snapshot.totalDream.toStringAsFixed(2)} DREAM',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '≈ \$${_walletService.convertDreamToUsd(snapshot.totalDream).toStringAsFixed(2)} USD',
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: colors.onSurfaceVariant,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '≈ \$${_walletService.convertDreamToUsd(snapshot.totalDream).toStringAsFixed(2)} USD',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (hasMultiplier)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 12),
-                              child: _buildStreakBadge(theme),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Claimable: ${claimableAmount.toStringAsFixed(2)} DREAM',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: Colors.white70,
-                        ),
-                      ),
-                      if (snapshot.lastClaimed != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Last claim: ${_formatLastClaimed(snapshot.lastClaimed!)}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.white60,
+                              ),
+                            ],
                           ),
                         ),
+                        if (hasMultiplier)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 12),
+                            child: _buildStreakBadge(theme),
+                          ),
                       ],
-                      const SizedBox(height: 24),
-                      if (!isConnected)
-                        _buildWalletActionButton(
-                          label: 'Connect Wallet',
-                          onPressed: hasLoadedData && !_isProcessingAction
-                              ? _connectWallet
-                              : null,
-                          isLoading: _isProcessingAction,
-                        )
-                      else
-                        _buildWalletActionButton(
-                          label: canClaim ? 'Claim Reward' : 'Wallet Connected',
-                          onPressed: canClaim && !_isProcessingAction
-                              ? _claimRewards
-                              : null,
-                          isLoading: _isProcessingAction,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Claimable: ${claimableAmount.toStringAsFixed(2)} DREAM',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (snapshot.lastClaimed != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Last claim: ${_formatLastClaimed(snapshot.lastClaimed!)}',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant.withOpacity(0.7),
                         ),
+                      ),
                     ],
-                  ),
+                    const SizedBox(height: 24),
+                    PrimaryButton(
+                      label: primaryLabel,
+                      onPressed: primaryAction,
+                      isLoading: _isProcessingAction,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
-
   Widget _buildStreakBadge(ThemeData theme) {
     final _StreakBadgeStyle? style = _streakBadgeStyle;
     final double? multiplier = _streakMultiplier;
@@ -310,71 +295,80 @@ class _WalletScreenState extends State<WalletScreen> {
       return const SizedBox.shrink();
     }
 
+    final DreamGradients gradients =
+        theme.extension<DreamGradients>() ?? DreamGradients.fallback;
+    final DreamCardTheme cardTheme =
+        theme.extension<DreamCardTheme>() ?? DreamCardTheme.fallback;
+    final TextTheme textTheme = theme.textTheme;
+    final ColorScheme colors = theme.colorScheme;
+
+    LinearGradient badgeGradient;
+    switch (style.gradientKey) {
+      case _StreakGradientTone.legendary:
+        badgeGradient = gradients.badgeLegendary;
+        break;
+      case _StreakGradientTone.hotStreak:
+        badgeGradient = gradients.badgeHotStreak;
+        break;
+      case _StreakGradientTone.findingRhythm:
+        badgeGradient = gradients.badgeFindingRhythm;
+        break;
+      case _StreakGradientTone.keepGoing:
+      default:
+        badgeGradient = gradients.badgeKeepGoing;
+        break;
+    }
+
     final String nightsLabel = nights == 1 ? '1 night streak' : '$nights night streak';
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: DecoratedBox(
+        filter: ImageFilter.blur(
+          sigmaX: cardTheme.blurSigma,
+          sigmaY: cardTheme.blurSigma,
+        ),
+        child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.22)),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: style.gradient,
-            ),
+            gradient: badgeGradient,
+            border: Border.all(color: cardTheme.borderColor.withOpacity(0.9)),
           ),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              color: Colors.black.withOpacity(0.18),
+              color: cardTheme.overlayColor,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Icon(style.icon, color: Colors.white, size: 24),
+                Icon(style.icon, color: colors.onPrimary, size: 24),
                 const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
                       '${multiplier.toStringAsFixed(1)}x',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: colors.onPrimary,
                         fontWeight: FontWeight.w700,
-                      ) ??
-                          const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       style.label,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colors.onPrimary,
                         fontWeight: FontWeight.w500,
-                      ) ??
-                          const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       nightsLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white70,
-                      ) ??
-                          const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                          ),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colors.onPrimary.withOpacity(0.7),
+                      ),
                     ),
                   ],
                 ),
@@ -386,73 +380,6 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 
-  Widget _buildWalletActionButton({
-    required String label,
-    required VoidCallback? onPressed,
-    required bool isLoading,
-  }) {
-    final bool isEnabled = onPressed != null && !isLoading;
-    final Widget child = isLoading
-        ? const SizedBox(
-      width: 20,
-      height: 20,
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-      ),
-    )
-        : Text(
-      label,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-
-    return SizedBox(
-      width: double.infinity,
-      child: Opacity(
-        opacity: isEnabled ? 1 : 0.6,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withOpacity(0.22)),
-                gradient: isEnabled
-                    ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[
-                    Color(0xFF8C7BFF),
-                    Color(0xFF6E8EF5),
-                  ],
-                )
-                    : LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[
-                    Colors.white.withOpacity(0.18),
-                    Colors.white.withOpacity(0.1),
-                  ],
-                ),
-              ),
-              child: TextButton(
-                onPressed: isEnabled ? onPressed : null,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   String _formatLastClaimed(DateTime dateTime) {
     final Duration difference = DateTime.now().difference(dateTime);
@@ -472,11 +399,13 @@ class _WalletScreenState extends State<WalletScreen> {
 class _StreakBadgeStyle {
   const _StreakBadgeStyle({
     required this.icon,
-    required this.gradient,
+    required this.gradientKey,
     required this.label,
   });
 
   final IconData icon;
-  final List<Color> gradient;
+  final _StreakGradientTone gradientKey;
   final String label;
 }
+
+enum _StreakGradientTone { keepGoing, findingRhythm, hotStreak, legendary }

@@ -1,3 +1,6 @@
+import 'themes/app_theme.dart';
+
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -46,7 +49,7 @@ class _DreamCatcherAppState extends State<DreamCatcherApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'DreamCatcher',
-      theme: ThemeData.dark(), // replace with your custom theme later
+      theme: AppTheme.dreamTheme, // replace with your custom theme later
       home: _showOnboarding
           ? OnboardingScreen(onFinished: _handleOnboardingFinished)
           : const PageControllerView(),

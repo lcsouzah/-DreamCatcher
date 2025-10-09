@@ -8,6 +8,7 @@ import '../services/storage_keys.dart';
 import '../widgets/card.dart';
 import '../widgets/permission_pill.dart';
 import '../widgets/primary_button.dart';
+import '../themes/app_theme.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -86,7 +87,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _loadingPermissions = true;
     });
-
     final PermissionStatusData status = await _getPermissionStatus();
     if (!mounted) {
       return;
@@ -110,203 +110,177 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) {
         return;
       }
+      final ThemeData theme = Theme.of(context);
+      final ColorScheme colors = theme.colorScheme;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${error.message} Please install or enable Health Connect.'),
-          backgroundColor: Colors.red,
+          content: Text(
+            '${error.message} Please install or enable Health Connect.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onError,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          backgroundColor: colors.error,
         ),
       );
     }
     await _refreshPermissions();
   }
 
-  Future<void> _toggleNotifications(bool value) async {
+  Future<void> _toggleSupabase(bool value) async {
     final SharedPreferences prefs =
         _prefs ?? await SharedPreferences.getInstance();
-    await prefs.setBool(StorageKeys.enableNotifications, value);
+    await prefs.setBool(StorageKeys.enableSupabase, value);
     setState(() {
       _prefs = prefs;
-      _notificationsEnabled = value;
+      _supabaseEnabled = value;
     });
   }
 
-  Future<void> _toggleDarkModeAccentIntensity(bool value) async {
+  Future<void> _toggleDebug(bool value) async {
     final SharedPreferences prefs =
         _prefs ?? await SharedPreferences.getInstance();
-    await prefs.setBool(StorageKeys.darkModeAccentIntensity, value);
+    await prefs.setBool(StorageKeys.enableDebugLogging, value);
     setState(() {
       _prefs = prefs;
-      _darkModeAccentIntensityEnabled = value;
-    });
-  }
-
-  Future<void> _toggleHealthConnectAutoSync(bool value) async {
-    final SharedPreferences prefs =
-        _prefs ?? await SharedPreferences.getInstance();
-    await prefs.setBool(StorageKeys.healthConnectAutoSync, value);
-    setState(() {
-      _prefs = prefs;
-      _healthConnectAutoSyncEnabled = value;
+      _debugEnabled = value;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: <Widget>[
-        Positioned.fill(
-          child: Image.asset(
-            'assets/screens/settings_bg.png',
-            fit: BoxFit.cover,
-          ),
-        ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  'Settings',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: ListView(
-                    children: <Widget>[
-                      DreamCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text(
-                              'Permissions',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
+    final ThemeData theme = Theme.of(context);
+    final TextTheme textTheme = theme.textTheme;
+    final ColorScheme colors = theme.colorScheme;
+    final DreamGradients gradients =
+        theme.extension<DreamGradients>() ?? DreamGradients.fallback;
+
+    final Color grantedColor = colors.tertiary;
+    final Color cautionColor = colors.secondary;
+    final Color errorColor = colors.error;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(gradient: gradients.settings),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('Settings', style: textTheme.displaySmall),
+              const SizedBox(height: 24),
+              Expanded(
+                child: ListView(
+                  children: <Widget>[
+                    DreamCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Permissions', style: textTheme.titleMedium),
+                          const SizedBox(height: 16),
+                          if (_loadingPermissions)
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: CircularProgressIndicator(
+                                  valueColor:
+                                  AlwaysStoppedAnimation<Color>(colors.primary),
+                                ),
                               ),
+                            )
+                          else ...<Widget>[
+                            PermissionPill(
+                              label: 'Activity recognition',
+                              status: _activityGranted
+                                  ? 'Granted'
+                                  : _activityPermanentlyDenied
+                                  ? 'Denied (settings required)'
+                                  : 'Not granted',
+                              statusColor: _activityGranted
+                                  ? grantedColor
+                                  : _activityPermanentlyDenied
+                                  ? errorColor
+                                  : cautionColor,
+                              onPressed:
+                              _activityGranted ? null : _requestActivityPermission,
+                              actionLabel: _activityGranted ? null : 'Re-request',
+                            ),
+                            const SizedBox(height: 12),
+                            PermissionPill(
+                              label: 'Health Connect sleep data',
+                              status: _sleepGranted ? 'Granted' : 'Not granted',
+                              statusColor:
+                              _sleepGranted ? grantedColor : cautionColor,
+                              onPressed:
+                              _sleepGranted ? null : _requestSleepPermission,
+                              actionLabel: _sleepGranted ? null : 'Re-request',
                             ),
                             const SizedBox(height: 16),
-                            if (_loadingPermissions)
-                              const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              )
-                            else ...<Widget>[
-                              PermissionPill(
-                                label: 'Activity recognition',
-                                status: _activityGranted
-                                    ? 'Granted'
-                                    : _activityPermanentlyDenied
-                                    ? 'Denied (settings required)'
-                                    : 'Not granted',
-                                statusColor: _activityGranted
-                                    ? Colors.greenAccent
-                                    : Colors.orangeAccent,
-                                onPressed: _activityGranted
-                                    ? null
-                                    : _requestActivityPermission,
-                                actionLabel: _activityGranted ? null : 'Re-request',
-                              ),
-                              const SizedBox(height: 12),
-                              PermissionPill(
-                                label: 'Health Connect sleep data',
-                                status:
-                                _sleepGranted ? 'Granted' : 'Not granted',
-                                statusColor: _sleepGranted
-                                    ? Colors.greenAccent
-                                    : Colors.orangeAccent,
-                                onPressed:
-                                _sleepGranted ? null : _requestSleepPermission,
-                                actionLabel:
-                                _sleepGranted ? null : 'Re-request',
-                              ),
-                              const SizedBox(height: 16),
-                              PrimaryButton(
-                                label: 'Refresh permission status',
-                                onPressed: _refreshPermissions,
-                                isLoading: _loadingPermissions,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      DreamCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text(
-                              'Developer toggles',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _ToggleSwitch(
-                              label: 'Enable notifications',
-                              value: _notificationsEnabled,
-                              onChanged: _toggleNotifications,
-                            ),
-                            const SizedBox(height: 12),
-                            _ToggleSwitch(
-                              label: 'Stronger dark-mode accent colors',
-                              value: _darkModeAccentIntensityEnabled,
-                              onChanged: _toggleDarkModeAccentIntensity,
-                            ),
-                            const SizedBox(height: 12),
-                            _ToggleSwitch(
-                              label: 'Auto-sync sleep data with Health Connect',
-                              value: _healthConnectAutoSyncEnabled,
-                              onChanged: _toggleHealthConnectAutoSync,
+                            PrimaryButton(
+                              label: 'Refresh permission status',
+                              onPressed: _refreshPermissions,
+                              isLoading: _loadingPermissions,
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      DreamCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text(
-                              'Developer info',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'App version: $_appVersion',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                            Text(
-                              'Build number: ${_buildNumber.isEmpty ? '—' : _buildNumber}',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
+                    ),
+                    const SizedBox(height: 20),
+                    DreamCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Developer toggles', style: textTheme.titleMedium),
+                          const SizedBox(height: 12),
+                          _ToggleSwitch(
+                            label: 'Enable Supabase integration',
+                            value: _supabaseEnabled,
+                            onChanged: _toggleSupabase,
+                          ),
+                          const SizedBox(height: 12),
+                          _ToggleSwitch(
+                            label: 'Enable debug logging',
+                            value: _debugEnabled,
+                            onChanged: _toggleDebug,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+                    DreamCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text('Developer info', style: textTheme.titleMedium),
+                          const SizedBox(height: 12),
+                          Text(
+                            'App version: $_appVersion',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            'Build number: ${_buildNumber.isEmpty ? '—' : _buildNumber}',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
+
 }
+
 
 class PermissionStatusData {
   PermissionStatusData({
@@ -333,24 +307,29 @@ class _ToggleSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final TextTheme textTheme = theme.textTheme;
+    final ColorScheme colors = theme.colorScheme;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: <Widget>[
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
+            style: textTheme.bodyLarge?.copyWith(
+              color: colors.onSurface,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
         Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: Colors.white,
-          activeTrackColor: const Color(0xFF7B61FF),
+          activeColor: colors.onPrimary,
+          activeTrackColor: colors.primary,
+          inactiveThumbColor: colors.onSurfaceVariant,
+          inactiveTrackColor: colors.surfaceVariant,
         ),
       ],
     );

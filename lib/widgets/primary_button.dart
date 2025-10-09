@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../themes/app_theme.dart';
+
 class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
@@ -16,32 +18,55 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget buttonChild = isLoading
-        ? const SizedBox(
+    final ThemeData theme = Theme.of(context);
+    final TextTheme textTheme = theme.textTheme;
+    final DreamButtonTheme buttonTheme =
+        theme.extension<DreamButtonTheme>() ?? DreamButtonTheme.fallback;
+    final bool isEnabled = onPressed != null && !isLoading;
+    final Gradient gradient =
+    isEnabled ? buttonTheme.primaryGradient : buttonTheme.disabledGradient;
+    final List<BoxShadow> shadow = isEnabled ? buttonTheme.glow : <BoxShadow>[];
+
+    final Widget child = isLoading
+        ? SizedBox(
       width: 18,
       height: 18,
       child: CircularProgressIndicator(
         strokeWidth: 2,
-        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        valueColor:
+        AlwaysStoppedAnimation<Color>(buttonTheme.foregroundColor),
       ),
     )
         : Text(
       label,
-      style: const TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 16,
+      style: textTheme.labelLarge?.copyWith(
+        color: buttonTheme.foregroundColor,
+        fontWeight: FontWeight.w700,
       ),
     );
 
-    final ElevatedButton button = ElevatedButton(
-      onPressed: isLoading ? null : onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF7B61FF),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    final Widget button = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: buttonTheme.borderRadius,
+        boxShadow: shadow,
       ),
-      child: buttonChild,
+      child: ClipRRect(
+        borderRadius: buttonTheme.borderRadius,
+        child: TextButton(
+          onPressed: isEnabled ? onPressed : null,
+          style: TextButton.styleFrom(
+            padding: buttonTheme.padding,
+            foregroundColor: buttonTheme.foregroundColor,
+            disabledForegroundColor: buttonTheme.foregroundColor.withOpacity(0.6),
+            backgroundColor: Colors.transparent,
+            textStyle: textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          child: Center(child: child),
+        ),
+      ),
     );
 
     if (!expanded) {

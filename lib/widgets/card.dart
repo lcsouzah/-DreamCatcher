@@ -1,4 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+
+import '../themes/app_theme.dart';
 
 class DreamCard extends StatelessWidget {
   const DreamCard({
@@ -12,22 +16,35 @@ class DreamCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+    final ThemeData theme = Theme.of(context);
+    final DreamCardTheme cardTheme =
+        theme.extension<DreamCardTheme>() ?? DreamCardTheme.fallback;
+
+    return ClipRRect(
+      borderRadius: cardTheme.borderRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: cardTheme.blurSigma,
+          sigmaY: cardTheme.blurSigma,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: cardTheme.borderRadius,
+            gradient: cardTheme.backgroundGradient,
+            border: Border.all(color: cardTheme.borderColor),
+            boxShadow: cardTheme.shadow,
           ),
-        ],
-      ),
-      child: Padding(
-        padding: padding,
-        child: child,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: cardTheme.borderRadius,
+              color: cardTheme.overlayColor,
+            ),
+            child: Padding(
+              padding: padding,
+              child: child,
+            ),
+          ),
+        ),
       ),
     );
   }
