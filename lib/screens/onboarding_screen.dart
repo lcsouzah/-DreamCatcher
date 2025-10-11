@@ -203,13 +203,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       bool granted = false;
                       try {
                         granted = await _healthService.requestPermissions();
-                      } on HealthConnectUnavailableException catch (error) {
+                      } catch (error) {
                         if (!context.mounted) return;
                         Navigator.of(context).pop();
                         setState(() => _isLoading = false);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('${error.message} Please install or enable Health Connect.'),
+                            content: Text(
+                              'Error requesting Health Connect permissions: $error',
+                            ),
                             backgroundColor: Colors.red,
                           ),
                         );

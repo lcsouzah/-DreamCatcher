@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/sleep_entry.dart';
 import '../models/sleep_record.dart';
 import '../services/health_connect_service.dart';
+import '../services/mock_sleep_service.dart';
+import '../services/storage_keys.dart';
 import '../widgets/card.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
@@ -22,34 +25,65 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = true;
   bool _permissionDenied = false;
+  bool _useMockData = false;
+  SharedPreferences? _prefs;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
+
+    if (!mounted) return;
+
+    setState(() {
+      _prefs = prefs;
+      _useMockData = useMock;
+    });
+
+    await _load();
   }
 
   Future<void> _load() async {
-    final DateTime now = DateTime.now();
-    final DateTime start =
-    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-    try {
-      final List<SleepRecord> records = await _healthService.readSleep(
-        from: start,
-        to: now,
-      );
-      if (!mounted) {
-        return;
-      }
+    if (_useMockData) {
+      final List<SleepRecord> records =
+      MockSleepService.generateMockData(days: 14);
+      if (!mounted) return;
       setState(() {
         _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
         _isLoading = false;
         _permissionDenied = false;
       });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
+      return;
+    }
+
+    final bool hasPermissions = await _healthService.hasPermissions();
+
+    if (!mounted) return;
+
+    if (!hasPermissions) {
+      setState(() {
+        _entries = <SleepEntry>[];
+        _isLoading = false;
+        _permissionDenied = false;
+      });
+      return;
+    }
+
+    try {
+      final List<SleepRecord> records =
+      await _healthService.readSleepSessions();
+      setState(() {
+        _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
+        _isLoading = false;
+        _permissionDenied = false;
+      });
+    } catch (error) {
+      debugPrint('[DreamCatcher] ⚠️ Failed to load history: $error');
       setState(() {
         _entries = <SleepEntry>[];
         _isLoading = false;
@@ -64,57 +98,49 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _permissionDenied = false;
     });
 
-    bool permissionGranted = false;
-    try {
-      permissionGranted = await _healthService.requestPermissions();
-    } on HealthConnectUnavailableException catch (error) {
-      if (!mounted) {
-        return;
-      }
+    final SharedPreferences prefs =
+        _prefs ?? await SharedPreferences.getInstance();
+    final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
+    if (useMock != _useMockData) {
       setState(() {
-        _isLoading = false;
-        _permissionDenied = true;
+        _prefs = prefs;
+        _useMockData = useMock;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${error.message} Please install or enable Health Connect.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    if (!permissionGranted) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isLoading = false;
-        _permissionDenied = true;
-      });
-      return;
     }
 
-    final DateTime now = DateTime.now();
-    final DateTime start =
-    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-
-    try {
-      final List<SleepRecord> records = await _healthService.readSleep(
-        from: start,
-        to: now,
-        forceRefresh: true,
-      );
-      if (!mounted) {
-        return;
-      }
+    if (_useMockData) {
+      final List<SleepRecord> records =
+      MockSleepService.generateMockData(days: 14);
+      if (!mounted) return;
       setState(() {
         _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
         _isLoading = false;
       });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
+      return;
+    }
+
+    final bool permissionGranted = await _healthService.requestPermissions();
+
+    if (!permissionGranted) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _permissionDenied = true;
+      });
+      return;
+    }
+
+    try {
+      final List<SleepRecord> records =
+      await _healthService.readSleepSessions();
+      if (!mounted) return;
+      setState(() {
+        _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
+        _isLoading = false;
+      });
+    } catch (error) {
+      debugPrint('[DreamCatcher] ⚠️ Error refreshing history: $error');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });

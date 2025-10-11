@@ -1,118 +1,112 @@
 import 'dart:developer';
+
 import 'package:flutter/foundation.dart';
 import 'package:health_connect/health_connect.dart';
 
+import '../models/sleep_record.dart';
+
 class HealthConnectService {
-  static final HealthConnectService _instance = HealthConnectService._internal();
+  HealthConnectService._();
+
+  static final HealthConnectService _instance = HealthConnectService._();
   factory HealthConnectService() => _instance;
-  HealthConnectService._internal();
 
   final HealthConnect _healthConnect = HealthConnect();
 
-  /// Check if Health Connect is available on the device
   Future<bool> isAvailable() async {
     try {
-      final available = await _healthConnect.isAvailable();
+      final bool available = await _healthConnect.isAvailable();
       if (kDebugMode) log('Health Connect available: $available');
       return available;
-    } catch (e) {
-      log('Error checking Health Connect availability: $e');
+    } catch (error, stackTrace) {
+      log('Error determining Health Connect availability: $error',
+          stackTrace: stackTrace);
       return false;
     }
   }
 
-  /// Request required permissions (e.g., for sleep data)
-  Future<bool> requestPermissions() async {
-    try {
-      final granted = await _healthConnect.requestPermission(
-        [HealthConnectDataType.sleepSession],
-      );
-      if (kDebugMode) log('Health Connect permission granted: $granted');
-      return granted;
-    } catch (e) {
-      log('Error requesting Health Connect permission: $e');
-      return false;
-    }
-  }
-
-  /// Check if permissions are already granted
   Future<bool> hasPermissions() async {
     try {
-      final granted = await _healthConnect.hasPermission(
-        [HealthConnectDataType.sleepSession],
+      final bool granted = await _healthConnect.hasPermission(
+        <HealthConnectDataType>[HealthConnectDataType.sleepSession],
       );
-      if (kDebugMode) log('Health Connect permission check: $granted');
+      if (kDebugMode) log('Health Connect permission status: $granted');
       return granted;
-    } catch (e) {
-      log('Error checking Health Connect permissions: $e');
+    } catch (error, stackTrace) {
+      log('Error checking Health Connect permissions: $error',
+          stackTrace: stackTrace);
       return false;
     }
   }
 
-  /// Read recent sleep sessions from Health Connect
+  Future<bool> requestPermissions() async {
+    try {
+      final bool granted = await _healthConnect.requestPermission(
+        <HealthConnectDataType>[HealthConnectDataType.sleepSession],
+      );
+      if (kDebugMode) log('Health Connect permission request result: $granted');
+      return granted;
+    } catch (error, stackTrace) {
+      log('Error requesting Health Connect permissions: $error',
+          stackTrace: stackTrace);
+      return false;
+    }
+  }
+
   Future<List<SleepRecord>> readSleepSessions({
     Duration range = const Duration(days: 7),
   }) async {
-    final now = DateTime.now();
-    final start = now.subtract(range);
+    final DateTime now = DateTime.now();
+    final DateTime start = now.subtract(range);
 
     try {
-      final records = await _healthConnect.readRecords(
+      final List<HealthConnectRecord> records = await _healthConnect.readRecords(
         HealthConnectDataType.sleepSession,
         startTime: start,
         endTime: now,
       );
 
       if (records.isEmpty) {
-        if (kDebugMode) log('No sleep records found.');
-        return [];
+        if (kDebugMode) log('No Health Connect sleep sessions returned.');
+        return <SleepRecord>[];
       }
 
-      // Convert HealthConnectRecord to SleepRecord
-      return records.map((r) {
-        final session = r as HealthConnectSleepSession;
-        final duration = session.endTime.difference(session.startTime);
+      final List<SleepRecord> mapped = records
+          .whereType<HealthConnectSleepSession>()
+          .map((HealthConnectSleepSession session) {
+        final DateTime sessionStart = session.startTime;
+        final DateTime sessionEnd = session.endTime;
+        final String? originPackage =
+            session.metadata.dataOrigin.packageName;
+        final String source =
+        (originPackage != null && originPackage.isNotEmpty)
+            ? originPackage
+            : 'Health Connect';
+
         return SleepRecord(
-          startTime: session.startTime,
-          endTime: session.endTime,
-          duration: duration,
-          source: session.metadata.dataOrigin.packageName ?? 'Health Connect',
+          start: sessionStart,
+          end: sessionEnd,
+          source: source,
+          type: 'session',
         );
-      }).toList();
-    } catch (e, st) {
-      log('Error reading sleep sessions: $e', stackTrace: st);
-      return [];
+      }).toList()
+        ..sort((SleepRecord a, SleepRecord b) => b.start.compareTo(a.start));
+
+      return mapped;
+    } catch (error, stackTrace) {
+      log('Error reading Health Connect sleep sessions: $error',
+          stackTrace: stackTrace);
+      return <SleepRecord>[];
     }
   }
 
-  /// Optional helper: revoke permissions if needed
   Future<void> revokePermissions() async {
     try {
       await _healthConnect.revokeAllPermissions();
-      log('All Health Connect permissions revoked');
-    } catch (e) {
-      log('Error revoking permissions: $e');
+      if (kDebugMode) log('Health Connect permissions revoked.');
+    } catch (error, stackTrace) {
+      log('Error revoking Health Connect permissions: $error',
+          stackTrace: stackTrace);
     }
-  }
-}
-
-/// A lightweight app model representing a single sleep record
-class SleepRecord {
-  final DateTime startTime;
-  final DateTime endTime;
-  final Duration duration;
-  final String source;
-
-  SleepRecord({
-    required this.startTime,
-    required this.endTime,
-    required this.duration,
-    required this.source,
-  });
-
-  String get durationString {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    return '${hours}h ${minutes}m';
   }
 }

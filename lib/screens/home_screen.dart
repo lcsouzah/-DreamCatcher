@@ -3,11 +3,14 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/sleep_entry.dart';
 import '../models/sleep_record.dart';
 import '../services/health_connect_service.dart';
+import '../services/mock_sleep_service.dart';
 import '../services/reward_service.dart';
+import '../services/storage_keys.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/primary_button.dart';
 
@@ -27,8 +30,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   bool _permissionDenied = false;
   bool _noData = false;
+  bool _useMockData = false;
   RewardSnapshot? _rewardSnapshot;
   bool _isLoadingRewards = false;
+  SharedPreferences? _prefs;
 
   final List<double> _mockTrendHours = const <double>[7.5, 6.8, 8.1, 7.6, 6.9, 7.3, 8.0];
   final List<_DreamFeedItem> _mockDreamFeed = const <_DreamFeedItem>[
@@ -62,34 +67,93 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCached();
+    _initialize();
     _loadMockRewards();
     // user must tap Refresh button to request Health Connect permission
   }
 
+  Future<void> _initialize() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
 
-  Future<void> _loadCached() async {
-    final DateTime now = DateTime.now();
-    final DateTime start =
-    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-    try {
-      final List<SleepRecord> records = await _healthService.readSleep(
-        from: start,
-        to: now,
-      );
+    if (!mounted) return;
+
+    setState(() {
+      _prefs = prefs;
+      _useMockData = useMock;
+    });
+
+    await _loadInitialRecords();
+  }
+
+  Future<void> _loadInitialRecords() async {
+    if (_useMockData) {
+      final List<SleepRecord> records =
+      MockSleepService.generateMockData(days: 7);
+      final List<SleepEntry> entries =
+      SleepEntry.aggregateFromRecords(records);
       if (!mounted) return;
-      final List<SleepEntry> entries = SleepEntry.aggregateFromRecords(records);
       setState(() {
         _entries = entries;
         _noData = entries.isEmpty;
+        _permissionDenied = false;
       });
-    } catch (_) {
-      if (!mounted) return;
+      return;
+    }
+
+    final bool hasPermissions = await _healthService.hasPermissions();
+
+    if (!mounted) return;
+
+    if (!hasPermissions) {
       setState(() {
         _entries = <SleepEntry>[];
         _noData = true;
+        _permissionDenied = false;
+      });
+      return;
+    }
+
+    try {
+      final List<SleepRecord> records =
+      await _healthService.readSleepSessions();
+      final List<SleepEntry> entries =
+      SleepEntry.aggregateFromRecords(records);
+      setState(() {
+        _entries = entries;
+        _noData = entries.isEmpty;
+        _permissionDenied = false;
+      });
+    } catch (error) {
+      debugPrint('[DreamCatcher] ⚠️ Failed to load sleep cache: $error');
+      setState(() {
+        _entries = <SleepEntry>[];
+        _noData = true;
+        _permissionDenied = false;
       });
     }
+  }
+
+  Future<List<SleepRecord>> _fetchSleepRecords() async {
+    if (_useMockData) {
+      return MockSleepService.generateMockData(days: 7);
+    }
+    return _healthService.readSleepSessions();
+  }
+
+  Future<void> _setUseMockData(bool value) async {
+    final SharedPreferences prefs =
+        _prefs ?? await SharedPreferences.getInstance();
+    await prefs.setBool(StorageKeys.useMockData, value);
+
+    if (!mounted) return;
+
+    setState(() {
+      _prefs = prefs;
+      _useMockData = value;
+    });
+
+    await _loadInitialRecords();
   }
 
   Future<void> _loadMockRewards() async {
@@ -125,25 +189,43 @@ class _HomeScreenState extends State<HomeScreen> {
 
     debugPrint("[DreamCatcher] 🔄 Starting refresh... requesting permissions");
 
-    bool permissionGranted = false;
-    try {
-      permissionGranted = await _healthService.requestPermissions();
-    } on HealthConnectUnavailableException catch (error) {
-      debugPrint('[DreamCatcher] ❌ $error');
+    final SharedPreferences prefs =
+        _prefs ?? await SharedPreferences.getInstance();
+    final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
+    if (useMock != _useMockData) {
+      setState(() {
+        _prefs = prefs;
+        _useMockData = useMock;
+      });
+    }
+
+    if (_useMockData) {
+      final List<SleepRecord> records =
+      MockSleepService.generateMockData(days: 7);
+      final List<SleepEntry> entries =
+      SleepEntry.aggregateFromRecords(records);
+
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _permissionDenied = true;
-        _noData = _entries.isEmpty;
+        _entries = entries;
+        _noData = entries.isEmpty;
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${error.message} Please install or enable Health Connect.'),
-          backgroundColor: Colors.red,
+          content: Text(
+            entries.isEmpty
+                ? '⚠️ Mock mode: no generated sleep data'
+                : '✅ Loaded ${entries.length} nights of mock sleep',
+          ),
+          backgroundColor: entries.isEmpty ? Colors.orange : Colors.green,
         ),
       );
       return;
     }
+
+    final bool permissionGranted = await _healthService.requestPermissions();
 
     debugPrint("[DreamCatcher] Permission result: $permissionGranted");
 
@@ -154,30 +236,20 @@ class _HomeScreenState extends State<HomeScreen> {
         _permissionDenied = true;
         _noData = _entries.isEmpty;
       });
-      debugPrint("[DreamCatcher] ❌ Permission denied");
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("❌ Health Connect permission not granted"),
+          content: Text('❌ Health Connect permission not granted'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    final DateTime now = DateTime.now();
-    final DateTime start =
-    DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
-
     try {
-      debugPrint("[DreamCatcher] 📡 Fetching sleep records from $start to $now");
+      debugPrint('[DreamCatcher] 📡 Fetching sleep records');
 
-      final List<SleepRecord> records = await _healthService.readSleep(
-        from: start,
-        to: now,
-        forceRefresh: true,
-      );
-
+      final List<SleepRecord> records = await _fetchSleepRecords();
       final List<SleepEntry> entries = SleepEntry.aggregateFromRecords(records);
 
       if (!mounted) return;
@@ -194,30 +266,31 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(
           content: Text(
             records.isEmpty
-                ? "⚠️ No new sleep data found"
-                : "✅ Synced ${records.length} sleep records",
+                ? '⚠️ No new sleep data found'
+                : '✅ Synced ${records.length} sleep records',
           ),
           backgroundColor: records.isEmpty ? Colors.orange : Colors.green,
         ),
       );
-    } catch (e, st) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
         _noData = _entries.isEmpty;
       });
 
-      debugPrint("[DreamCatcher] ⚠️ Sleep fetch error: $e");
-      debugPrint(st.toString());
+      debugPrint('[DreamCatcher] ⚠️ Sleep fetch error: $error');
+      debugPrint(stackTrace.toString());
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("⚠️ Error fetching sleep data: $e"),
+          content: Text('⚠️ Error fetching sleep data: $error'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
+
 
 
   SleepEntry? get _todayEntry {
@@ -337,6 +410,27 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: Colors.white70,
                         ),
+                      ),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              _useMockData
+                                  ? 'Mock sleep data enabled'
+                                  : 'Health Connect sleep data',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: _useMockData,
+                            onChanged: (bool value) => _setUseMockData(value),
+                            activeColor: Colors.white,
+                            activeTrackColor: theme.colorScheme.primary,
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
                       if (_permissionDenied)

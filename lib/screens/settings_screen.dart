@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/health_connect_service.dart';
@@ -20,8 +19,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final HealthConnectService _healthService = HealthConnectService();
 
-  bool _activityGranted = false;
-  bool _activityPermanentlyDenied = false;
   bool _sleepGranted = false;
   bool _loadingPermissions = true;
 
@@ -30,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _healthConnectAutoSyncEnabled = false;
   bool _supabaseEnabled = false;
   bool _debugEnabled = false;
+  bool _useMockData = false;
 
 
   String _appVersion = 'Loading…';
@@ -46,8 +44,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _initialize() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
     final PermissionStatusData permissionStatus =
-    await _getPermissionStatus();
+    await _getPermissionStatus(useMockData: useMock);
 
     if (!mounted) {
       return;
@@ -64,6 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _supabaseEnabled = prefs.getBool(StorageKeys.enableSupabase) ?? false;
       _debugEnabled =
           prefs.getBool(StorageKeys.enableDebugLogging) ?? false;
+      _useMockData = useMock;
       _appVersion = packageInfo.version;
       _buildNumber = packageInfo.buildNumber;
       _applyPermissionStatus(permissionStatus);
@@ -71,21 +71,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<PermissionStatusData> _getPermissionStatus() async {
-    final bool sleepGranted = await _healthService.hasSleepPermission();
-    final PermissionStatus activityStatus =
-    await _healthService.activityPermissionStatus();
+  Future<PermissionStatusData> _getPermissionStatus({bool? useMockData}) async {
+    final bool usingMock = useMockData ?? _useMockData;
+    if (usingMock) {
+      return PermissionStatusData(sleepGranted: true);
+    }
 
-    return PermissionStatusData(
-      activityGranted: activityStatus.isGranted,
-      activityPermanentlyDenied: activityStatus.isPermanentlyDenied,
-      sleepGranted: sleepGranted,
-    );
+    final bool sleepGranted = await _healthService.hasPermissions();
+
+    return PermissionStatusData(sleepGranted: sleepGranted);
   }
 
   void _applyPermissionStatus(PermissionStatusData status) {
-    _activityGranted = status.activityGranted;
-    _activityPermanentlyDenied = status.activityPermanentlyDenied;
     _sleepGranted = status.sleepGranted;
   }
 
@@ -104,34 +101,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _requestActivityPermission() async {
-    await _healthService.ensureActivityPermission();
+  Future<void> _requestSleepPermission() async {
+    if (_useMockData) {
+      return;
+    }
+
+    await _healthService.requestPermissions();
     await _refreshPermissions();
   }
 
-  Future<void> _requestSleepPermission() async {
-    try {
-      await _healthService.requestSleepAuthorization();
-    } on HealthConnectUnavailableException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      final ThemeData theme = Theme.of(context);
-      final ColorScheme colors = theme.colorScheme;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${error.message} Please install or enable Health Connect.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.onError,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          backgroundColor: colors.error,
-        ),
-      );
+  Future<void> _toggleMockData(bool value) async {
+    final SharedPreferences prefs =
+        _prefs ?? await SharedPreferences.getInstance();
+    await prefs.setBool(StorageKeys.useMockData, value);
+
+    if (!mounted) {
+      return;
     }
-    await _refreshPermissions();
+
+    setState(() {
+      _prefs = prefs;
+      _useMockData = value;
+      if (value) {
+        _sleepGranted = true;
+      }
+    });
+
+    if (!value) {
+      await _refreshPermissions();
+    }
   }
 
   Future<void> _toggleSupabase(bool value) async {
@@ -197,23 +195,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             )
                           else ...<Widget>[
                             PermissionPill(
-                              label: 'Activity recognition',
-                              status: _activityGranted
-                                  ? 'Granted'
-                                  : _activityPermanentlyDenied
-                                  ? 'Denied (settings required)'
-                                  : 'Not granted',
-                              statusColor: _activityGranted
-                                  ? grantedColor
-                                  : _activityPermanentlyDenied
-                                  ? errorColor
-                                  : cautionColor,
-                              onPressed:
-                              _activityGranted ? null : _requestActivityPermission,
-                              actionLabel: _activityGranted ? null : 'Re-request',
-                            ),
-                            const SizedBox(height: 12),
-                            PermissionPill(
                               label: 'Health Connect sleep data',
                               status: _sleepGranted ? 'Granted' : 'Not granted',
                               statusColor:
@@ -238,6 +219,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text('Developer toggles', style: textTheme.titleMedium),
+                          const SizedBox(height: 12),
+                          _ToggleSwitch(
+                            label: 'Use mock sleep data (no Health Connect)',
+                            value: _useMockData,
+                            onChanged: (bool value) {
+                              _toggleMockData(value);
+                            },
+                          ),
                           const SizedBox(height: 12),
                           _ToggleSwitch(
                             label: 'Enable Supabase integration',
@@ -290,13 +279,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 class PermissionStatusData {
   PermissionStatusData({
-    required this.activityGranted,
-    required this.activityPermanentlyDenied,
     required this.sleepGranted,
   });
 
-  final bool activityGranted;
-  final bool activityPermanentlyDenied;
+
   final bool sleepGranted;
 }
 
