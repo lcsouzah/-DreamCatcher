@@ -31,7 +31,7 @@ android {
 
     defaultConfig {
         applicationId = "com.dreamcatcher.dreamcatcher"
-        minSdk = 33
+        minSdk = 34
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
