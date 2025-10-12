@@ -1,7 +1,7 @@
 import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
-import 'package:health_connect/health_connect.dart';
+import 'package:health/health.dart';
 
 import '../models/sleep_record.dart';
 
@@ -11,11 +11,24 @@ class HealthConnectService {
   static final HealthConnectService _instance = HealthConnectService._();
   factory HealthConnectService() => _instance;
 
-  final HealthConnect _healthConnect = HealthConnect();
+  final HealthFactory _healthFactory = HealthFactory();
+
+  static const List<HealthDataType> _sleepDataTypes = <HealthDataType>[
+    HealthDataType.SLEEP_ASLEEP,
+    HealthDataType.SLEEP_AWAKE,
+    HealthDataType.SLEEP_IN_BED,
+  ];
+
+  static const List<HealthDataAccess> _sleepReadPermissions =
+  <HealthDataAccess>[
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+  ];
 
   Future<bool> isAvailable() async {
     try {
-      final bool available = await _healthConnect.isAvailable();
+      final bool available = await _healthFactory.isHealthConnectSupported();
       if (kDebugMode) log('Health Connect available: $available');
       return available;
     } catch (error, stackTrace) {
@@ -27,11 +40,12 @@ class HealthConnectService {
 
   Future<bool> hasPermissions() async {
     try {
-      final bool granted = await _healthConnect.hasPermission(
-        <HealthConnectDataType>[HealthConnectDataType.sleepSession],
+      final bool? granted = await _healthFactory.hasPermissions(
+        _sleepDataTypes,
+        permissions: _sleepReadPermissions,
       );
       if (kDebugMode) log('Health Connect permission status: $granted');
-      return granted;
+      return granted ?? false;
     } catch (error, stackTrace) {
       log('Error checking Health Connect permissions: $error',
           stackTrace: stackTrace);
@@ -41,10 +55,13 @@ class HealthConnectService {
 
   Future<bool> requestPermissions() async {
     try {
-      final bool granted = await _healthConnect.requestPermission(
-        <HealthConnectDataType>[HealthConnectDataType.sleepSession],
+      final bool granted = await _healthFactory.requestAuthorization(
+        _sleepDataTypes,
+        permissions: _sleepReadPermissions,
       );
-      if (kDebugMode) log('Health Connect permission request result: $granted');
+      if (kDebugMode) {
+        log('Health Connect permission request result: $granted');
+      }
       return granted;
     } catch (error, stackTrace) {
       log('Error requesting Health Connect permissions: $error',
@@ -60,34 +77,35 @@ class HealthConnectService {
     final DateTime start = now.subtract(range);
 
     try {
-      final List<HealthConnectRecord> records = await _healthConnect.readRecords(
-        HealthConnectDataType.sleepSession,
-        startTime: start,
-        endTime: now,
+      final List<HealthDataPoint> dataPoints =
+      await _healthFactory.getHealthDataFromTypes(
+        start,
+        now,
+        _sleepDataTypes,
       );
 
-      if (records.isEmpty) {
+      if (dataPoints.isEmpty) {
         if (kDebugMode) log('No Health Connect sleep sessions returned.');
         return <SleepRecord>[];
       }
 
-      final List<SleepRecord> mapped = records
-          .whereType<HealthConnectSleepSession>()
-          .map((HealthConnectSleepSession session) {
-        final DateTime sessionStart = session.startTime;
-        final DateTime sessionEnd = session.endTime;
-        final String? originPackage =
-            session.metadata.dataOrigin.packageName;
-        final String source =
-        (originPackage != null && originPackage.isNotEmpty)
-            ? originPackage
+      final Iterable<HealthDataPoint> cleaned =
+      HealthFactory.removeDuplicates(dataPoints);
+
+      final List<SleepRecord> mapped = cleaned.map((HealthDataPoint point) {
+        final DateTime sessionStart = point.dateFrom;
+        final DateTime sessionEnd = point.dateTo;
+        final String source = (point.sourceName?.isNotEmpty ?? false)
+            ? point.sourceName!
+            : (point.sourceId?.isNotEmpty ?? false)
+            ? point.sourceId!
             : 'Health Connect';
 
         return SleepRecord(
           start: sessionStart,
           end: sessionEnd,
           source: source,
-          type: 'session',
+          type: _mapSleepType(point.type),
         );
       }).toList()
         ..sort((SleepRecord a, SleepRecord b) => b.start.compareTo(a.start));
@@ -102,11 +120,24 @@ class HealthConnectService {
 
   Future<void> revokePermissions() async {
     try {
-      await _healthConnect.revokeAllPermissions();
+      await _healthFactory.revokePermissions();
       if (kDebugMode) log('Health Connect permissions revoked.');
     } catch (error, stackTrace) {
       log('Error revoking Health Connect permissions: $error',
           stackTrace: stackTrace);
+    }
+  }
+
+  String _mapSleepType(HealthDataType type) {
+    switch (type) {
+      case HealthDataType.SLEEP_AWAKE:
+        return 'awake';
+      case HealthDataType.SLEEP_ASLEEP:
+        return 'asleep';
+      case HealthDataType.SLEEP_IN_BED:
+        return 'in_bed';
+      default:
+        return type.name.toLowerCase();
     }
   }
 }

@@ -35,19 +35,29 @@ dependencies:
   googleapis: any
   http: any
   provider: ^6.1.2
-  health_connect: ^0.0.0
+
   permission_handler: ^12.0.1
   flutter_dotenv: ^6.0.0
   supabase_flutter: ^2.5.7
   share_plus: ^12.0.0
   package_info_plus: ^9.0.0
+  intl: ^0.20.2
+
+
+  # Health plugin
+  health_connect: ^0.0.0
+  health: ^13.2.0
+  health_services: ^1.2.0
+  flutter_health_connect: ^1.2.3
+  health_platform_interface: ^1.2.0
+  health_data_types: ^1.2.0
+
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  intl: ^0.20.2
-  health: ^13.2.0
-  flutter_health_connect: ^1.2.3
+
+
 
 dev_dependencies:
   flutter_test:
