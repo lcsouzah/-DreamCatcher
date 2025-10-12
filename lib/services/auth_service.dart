@@ -1,4 +1,4 @@
-import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class GoogleUserProfile {
   GoogleUserProfile({
@@ -15,30 +15,29 @@ class GoogleUserProfile {
 }
 
 class AuthService {
-  AuthService({GoogleSignInPlatform? googleSignIn})
-      : _googleSignIn = googleSignIn ?? GoogleSignInPlatform.instance {
-    _googleSignIn.init(
-      scopes: const <String>[
-        'email',
-        // optional: add Google Fit scope for sleep syncing
-        'https://www.googleapis.com/auth/fitness.sleep.read',
-      ],
-    );
-  }
+  AuthService({GoogleSignIn? googleSignIn})
+      : _googleSignIn = googleSignIn ??
+      GoogleSignIn(
+        scopes: <String>[
+          'email',
+          // optional: add Google Fit scope for sleep syncing
+          'https://www.googleapis.com/auth/fitness.sleep.read',
+        ],
+      );
 
-  final GoogleSignInPlatform _googleSignIn;
+  final GoogleSignIn _googleSignIn;
 
   /// The currently signed-in user, or null if not signed in.
-  GoogleSignInUserData? get currentUser => _googleSignIn.currentUser;
+  GoogleSignInAccount? get currentUser => _googleSignIn.currentUser;
 
   /// Stream that notifies when the signed-in user changes.
-  Stream<GoogleSignInUserData?> get onAuthStateChanged =>
+  Stream<GoogleSignInAccount?> get onAuthStateChanged =>
       _googleSignIn.onCurrentUserChanged;
 
   /// Signs the user in with Google.
   Future<GoogleUserProfile?> signInWithGoogle() async {
     try {
-      final GoogleSignInUserData? account = await _googleSignIn.signIn();
+      final GoogleSignInAccount? account = await _googleSignIn.signIn();
       if (account == null) return null;
 
       return GoogleUserProfile(
@@ -56,7 +55,8 @@ class AuthService {
   /// Attempts silent sign-in without showing UI.
   Future<GoogleUserProfile?> signInSilently() async {
     try {
-      final GoogleSignInUserData? account = await _googleSignIn.signInSilently();
+      final GoogleSignInAccount? account =
+      await _googleSignIn.signInSilently();
       if (account == null) return null;
 
       return GoogleUserProfile(

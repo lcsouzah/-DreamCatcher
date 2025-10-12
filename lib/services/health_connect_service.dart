@@ -1,7 +1,7 @@
 import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
-import 'package:health/health.dart';
+import 'package:health/health.dart' as health;
 
 import '../models/sleep_record.dart';
 
@@ -11,19 +11,21 @@ class HealthConnectService {
   static final HealthConnectService _instance = HealthConnectService._();
   factory HealthConnectService() => _instance;
 
-  final HealthFactory _healthFactory = HealthFactory();
+  final health.HealthFactory _healthFactory =
+  health.HealthFactory(useHealthConnectIfAvailable: true);
 
-  static const List<HealthDataType> _sleepDataTypes = <HealthDataType>[
-    HealthDataType.SLEEP_ASLEEP,
-    HealthDataType.SLEEP_AWAKE,
-    HealthDataType.SLEEP_IN_BED,
+  static const List<health.HealthDataType> _sleepDataTypes =
+  <health.HealthDataType>[
+    health.HealthDataType.SLEEP_ASLEEP,
+    health.HealthDataType.SLEEP_AWAKE,
+    health.HealthDataType.SLEEP_IN_BED,
   ];
 
-  static const List<HealthDataAccess> _sleepReadPermissions =
-  <HealthDataAccess>[
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
+  static const List<health.HealthDataAccess> _sleepReadPermissions =
+  <health.HealthDataAccess>[
+    health.HealthDataAccess.READ,
+    health.HealthDataAccess.READ,
+    health.HealthDataAccess.READ,
   ];
 
   Future<bool> isAvailable() async {
@@ -77,7 +79,7 @@ class HealthConnectService {
     final DateTime start = now.subtract(range);
 
     try {
-      final List<HealthDataPoint> dataPoints =
+      final List<health.HealthDataPoint> dataPoints =
       await _healthFactory.getHealthDataFromTypes(
         start,
         now,
@@ -89,10 +91,11 @@ class HealthConnectService {
         return <SleepRecord>[];
       }
 
-      final Iterable<HealthDataPoint> cleaned =
-      HealthFactory.removeDuplicates(dataPoints);
+      final Iterable<health.HealthDataPoint> cleaned =
+      health.HealthFactory.removeDuplicates(dataPoints);
 
-      final List<SleepRecord> mapped = cleaned.map((HealthDataPoint point) {
+      final List<SleepRecord> mapped =
+      cleaned.map((health.HealthDataPoint point) {
         final DateTime sessionStart = point.dateFrom;
         final DateTime sessionEnd = point.dateTo;
         final String source = (point.sourceName?.isNotEmpty ?? false)
@@ -128,13 +131,13 @@ class HealthConnectService {
     }
   }
 
-  String _mapSleepType(HealthDataType type) {
+  String _mapSleepType(health.HealthDataType type) {
     switch (type) {
-      case HealthDataType.SLEEP_AWAKE:
+      case health.HealthDataType.SLEEP_AWAKE:
         return 'awake';
-      case HealthDataType.SLEEP_ASLEEP:
+      case health.HealthDataType.SLEEP_ASLEEP:
         return 'asleep';
-      case HealthDataType.SLEEP_IN_BED:
+      case health.HealthDataType.SLEEP_IN_BED:
         return 'in_bed';
       default:
         return type.name.toLowerCase();
