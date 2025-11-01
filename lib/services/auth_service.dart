@@ -1,125 +1,84 @@
+// lib/services/auth_service.dart (platform-interface, v7+ compatible)
 import 'dart:async';
-
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart' as gsi;
 
 class GoogleUserProfile {
-  GoogleUserProfile({
+  const GoogleUserProfile({
     required this.id,
-    required this.displayName,
     required this.email,
+    this.displayName,
     this.photoUrl,
   });
 
   final String id;
-  final String? displayName;
   final String email;
+  final String? displayName;
   final String? photoUrl;
 }
 
 class AuthService {
-  AuthService({
-    GoogleSignInPlatform? googleSignInPlatform,
-    GoogleSignInController? controller,
-  })  : _controllerFuture = controller != null
-      ? Future<GoogleSignInController>.value(controller)
-      : (googleSignInPlatform ?? GoogleSignInPlatform.instance)
-      .initWithParams(const GoogleSignInInitParams(
-    scopes: <String>[
-      'email',
-      // optional: add Google Fit scope for sleep syncing
-      'https://www.googleapis.com/auth/fitness.sleep.read',
-    ],
-  ));
+  AuthService._();
+  static final AuthService _instance = AuthService._();
+  factory AuthService() => _instance;
 
-  final Future<GoogleSignInController> _controllerFuture;
-  StreamController<GoogleUserProfile?>? _userChangeController;
-  StreamSubscription<GoogleSignInUserData?>? _userChangeSubscription;
+  final _controller = StreamController<GoogleUserProfile?>.broadcast();
+  GoogleUserProfile? _current;
 
-  /// Provides the underlying controller once initialised.
-  Future<GoogleSignInController> get _controller async => _controllerFuture;
+  /// Emits the mapped profile or null when signed out.
+  Stream<GoogleUserProfile?> get onUserChanged => _controller.stream;
 
-  /// The currently signed-in user, or null if not signed in.
-  Future<GoogleUserProfile?> get currentUser async {
-    final GoogleSignInController controller = await _controller;
-    return _mapUser(controller.currentUser);
+  /// Current signed-in user (if any).
+  GoogleUserProfile? get currentUser => _current;
+
+  Future<void> _ensureInitialized() async {
+    // If your app doesn't parse google-services.json for server client ID,
+    // you can supply it here via InitParameters(serverClientId: '...')
+    await gsi.GoogleSignInPlatform.instance.init(const gsi.InitParameters());
   }
 
-  /// Stream that notifies when the signed-in user changes.
-  Stream<GoogleUserProfile?> get onAuthStateChanged {
-    if (_userChangeController != null) {
-      return _userChangeController!.stream;
-    }
-
-    final StreamController<GoogleUserProfile?> controller =
-    StreamController<GoogleUserProfile?>.broadcast(
-      onListen: () {
-        unawaited(_controller.then((GoogleSignInController signInController) {
-          controller.add(_mapUser(signInController.currentUser));
-          _userChangeSubscription =
-              signInController.onCurrentUserChanged.listen(
-                    (GoogleSignInUserData? user) {
-                  controller.add(_mapUser(user));
-                },
-                onError: controller.addError,
-              );
-        }));
-      },
-      onCancel: () {
-        final Future<void>? cancellation = _userChangeSubscription?.cancel();
-        _userChangeSubscription = null;
-        if (cancellation != null) {
-          unawaited(cancellation);
-        }
-      },
+  Future<GoogleUserProfile?> signIn() async {
+    await _ensureInitialized();
+    final gsi.AuthenticationResults result =
+        await gsi.GoogleSignInPlatform.instance.authenticate(
+      const gsi.AuthenticateParameters(),
     );
-
-    _userChangeController = controller;
-    return controller.stream;
+    return _setUser(result.user);
   }
 
-  /// Signs the user in with Google.
-  Future<GoogleUserProfile?> signInWithGoogle() async {
-    try {
-      final GoogleSignInController controller = await _controller;
-      final GoogleSignInUserData? account = await controller.signIn();
-      return _mapUser(account);
-    } catch (e) {
-      print('[AuthService] Google sign-in failed: $e');
-      return null;
-    }
-  }
-
-  /// Attempts silent sign-in without showing UI.
+  /// Attempts a lightweight sign-in first; falls back to full auth if needed.
   Future<GoogleUserProfile?> signInSilently() async {
-    try {
-      final GoogleSignInController controller = await _controller;
-      final GoogleSignInUserData? account = await controller.signInSilently();
-      return _mapUser(account);
-    } catch (e) {
-      print('[AuthService] Silent sign-in failed: $e');
+    await _ensureInitialized();
+    final gsi.AuthenticationResults? result =
+        await gsi.GoogleSignInPlatform.instance.attemptLightweightAuthentication(
+      const gsi.AttemptLightweightAuthenticationParameters(),
+    );
+    return _setUser(result?.user);
+  }
+
+  Future<void> signOut() async {
+    await _ensureInitialized();
+    await gsi.GoogleSignInPlatform.instance.disconnect(const gsi.DisconnectParams());
+    _setUser(null);
+  }
+
+  GoogleUserProfile? _setUser(gsi.GoogleSignInUserData? user) {
+    if (user == null) {
+      _current = null;
+      _controller.add(null);
       return null;
     }
-  }
-
-  /// Signs the current user out.
-  Future<void> signOut() async {
-    try {
-      final GoogleSignInController controller = await _controller;
-      await controller.signOut();
-      print('[AuthService] User signed out.');
-    } catch (e) {
-      print('[AuthService] Sign-out failed: $e');
-    }
-  }
-
-  GoogleUserProfile? _mapUser(GoogleSignInUserData? account) {
-    if (account == null) return null;
-
-    return GoogleUserProfile(
-      id: account.id,
-      displayName: account.displayName,
-      email: account.email,
-      photoUrl: account.photoUrl,
+    final mapped = GoogleUserProfile(
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      photoUrl: user.photoUrl,
     );
+    _current = mapped;
+    _controller.add(mapped);
+    return mapped;
+  }
+
+  void dispose() {
+    _controller.close();
   }
 }

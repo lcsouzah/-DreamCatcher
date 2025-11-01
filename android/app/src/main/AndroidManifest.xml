@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 🌐 Network + Health Connect permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
-    <uses-permission android:name="android.permission.health.READ_MOOD" />
+    <!-- Optional if you will write data later -->
+    <!-- <uses-permission android:name="android.permission.health.WRITE_SLEEP" /> -->
 
     <application
         android:name="${applicationName}"
@@ -24,7 +25,6 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Default Flutter splash theme -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
@@ -35,26 +35,20 @@
             </intent-filter>
         </activity>
 
-        <!-- Flutter plugin registry -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Google Play Services version hint -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
     </application>
 
-    <!-- Visibility query (needed for text processing on some plugins) -->
+    <!-- Allow discovery of Health Connect packages -->
     <queries>
-        <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT" />
-            <data android:mimeType="text/plain" />
-        </intent>
-        <!-- Allow discovery of the standalone Health Connect app on Android 13. -->
+        <!-- Standalone Health Connect app (Android 13) -->
         <package android:name="com.google.android.apps.healthdata" />
-        <!-- Android 14+ devices expose the system Health Connect controller package. -->
+        <!-- System Health Connect controller (Android 14+) -->
         <package android:name="com.google.android.healthconnect.controller" />
     </queries>
 </manifest>
