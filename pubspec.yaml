@@ -29,7 +29,7 @@ dependencies:
   googleapis: any
 
   # --- HEALTH: keep ONLY this one; remove others like `health_connect`
-  health: ^13.2.0
+  flutter_health_connect: ^1.2.3
 
   # Cupertino icons
   cupertino_icons: ^1.0.8

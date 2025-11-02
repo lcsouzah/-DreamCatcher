@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/auth_service.dart';
 import '../services/health_connect_service.dart';
 import '../services/storage_keys.dart';
 
@@ -16,7 +15,6 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final AuthService _authService = AuthService();
   final HealthConnectService _healthService = HealthConnectService();
 
   bool _isLoading = false;

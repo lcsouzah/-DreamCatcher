@@ -1,10 +1,6 @@
-// lib/services/health_connect_service.dart (final fix)
-// - from/to made optional with sensible defaults
-// - fixed session merge logic
-// - explicit aliasing of 'health' package to avoid local name conflicts
 import 'dart:developer';
 import 'package:flutter/foundation.dart';
-import 'package:health/health.dart' as health;
+import 'package:flutter_health_connect/flutter_health_connect.dart';
 
 import '../models/sleep_record.dart';
 
@@ -13,21 +9,14 @@ class HealthConnectService {
   static final HealthConnectService _instance = HealthConnectService._();
   factory HealthConnectService() => _instance;
 
-  final health.HealthFactory _health = health.HealthFactory(useHealthConnectIfAvailable: true);
-
-  static const _sleepTypes = <health.HealthDataType>[
-    health.HealthDataType.SLEEP_ASLEEP,
-    health.HealthDataType.SLEEP_AWAKE,
-    health.HealthDataType.SLEEP_IN_BED,
+  static const List<HealthConnectDataType> _sleepTypes = <HealthConnectDataType>[
+    HealthConnectDataType.SleepSession,
+    HealthConnectDataType.SleepStage,
   ];
 
-  /// Returns true if the app already holds READ permissions for sleep.
   Future<bool> hasPermissions() async {
     try {
-      final has = await _health.hasPermissions(
-        _sleepTypes,
-        permissions: _sleepTypes.map((_) => health.HealthDataAccess.READ).toList(),
-      );
+      final has = await HealthConnectFactory.hasPermissions(_sleepTypes, readOnly: true);
       if (kDebugMode) log('hasPermissions: $has');
       return has ?? false;
     } catch (e, st) {
@@ -36,13 +25,9 @@ class HealthConnectService {
     }
   }
 
-  /// Shows the Health permissions sheet and returns true if granted.
   Future<bool> requestPermissions() async {
     try {
-      final ok = await _health.requestAuthorization(
-        _sleepTypes,
-        permissions: _sleepTypes.map((_) => health.HealthDataAccess.READ).toList(),
-      );
+      final ok = await HealthConnectFactory.requestPermissions(_sleepTypes, readOnly: true);
       if (kDebugMode) log('requestPermissions -> $ok');
       return ok;
     } catch (e, st) {
@@ -51,28 +36,43 @@ class HealthConnectService {
     }
   }
 
-  /// For compatibility with other code paths.
   Future<bool> ensurePermissions() => requestPermissions();
 
-  /// Raw sleep segments. If [from]/[to] are null, defaults to last 14 days.
+  /// Sleep *stages* (detailed segments). Defaults to last 14 days.
   Future<List<SleepRecord>> readSleep({DateTime? from, DateTime? to}) async {
     final DateTime end = to ?? DateTime.now();
     final DateTime start = from ?? end.subtract(const Duration(days: 14));
-
     try {
-      final data = await _health.getHealthDataFromTypes(start, end, _sleepTypes);
+      final map = await HealthConnectFactory.getRecord(
+        startTime: start,
+        endTime: end,
+        type: HealthConnectDataType.SleepStage, // ✅ single required 'type'
+        ascendingOrder: true,
+      );
+
+      final dynamic stages = map[HealthConnectDataType.SleepStage.name];
       final out = <SleepRecord>[];
-      for (final d in data) {
-        final s = d.dateFrom;
-        final e = d.dateTo;
-        if (s == null || e == null) continue;
-        out.add(SleepRecord(
-          start: s,
-          end: e,
-          source: d.sourceName ?? 'Health Connect',
-          type: _sleepTypeName(d.type),
-        ));
+
+      if (stages is List) {
+        for (final item in stages) {
+          final String? startIso = item['startTime'] as String?;
+          final String? endIso = item['endTime'] as String?;
+          if (startIso == null || endIso == null) continue;
+
+          final s = DateTime.parse(startIso);
+          final e = DateTime.parse(endIso);
+          final stage = (item['stage'] ?? 'stage').toString();
+          final source = (item['dataOrigin']?['packageName'] ?? 'Health Connect').toString();
+
+          out.add(SleepRecord(
+            start: s,
+            end: e,
+            source: source,
+            type: stage.toLowerCase(), // light/deep/rem/awake
+          ));
+        }
       }
+
       out.sort((a, b) => b.start.compareTo(a.start));
       return out;
     } catch (e, st) {
@@ -81,66 +81,46 @@ class HealthConnectService {
     }
   }
 
-  /// Groups contiguous segments into nightly "sessions".
-  /// If [from]/[to] are null, defaults to last 14 days.
-  Future<List<SleepRecord>> readSleepSessions({
-    DateTime? from,
-    DateTime? to,
-    Duration gap = const Duration(minutes: 30),
-  }) async {
-    final segments = await readSleep(from: from, to: to);
-    if (segments.isEmpty) return segments;
+  /// Sleep *sessions* (nightly merged). Defaults to last 14 days.
+  Future<List<SleepRecord>> readSleepSessions({DateTime? from, DateTime? to}) async {
+    final DateTime end = to ?? DateTime.now();
+    final DateTime start = from ?? end.subtract(const Duration(days: 14));
+    try {
+      final map = await HealthConnectFactory.getRecord(
+        startTime: start,
+        endTime: end,
+        type: HealthConnectDataType.SleepSession, // ✅ single required 'type'
+        ascendingOrder: true,
+      );
 
-    // sort ascending for grouping
-    segments.sort((a, b) => a.start.compareTo(b.start));
+      final dynamic sessions = map[HealthConnectDataType.SleepSession.name];
+      final out = <SleepRecord>[];
 
-    final sessions = <SleepRecord>[];
-    var curStart = segments.first.start;
-    var curEnd = segments.first.end;
-    var curSource = segments.first.source;
+      if (sessions is List) {
+        for (final item in sessions) {
+          final String? startIso = item['startTime'] as String?;
+          final String? endIso = item['endTime'] as String?;
+          if (startIso == null || endIso == null) continue;
 
-    for (var i = 1; i < segments.length; i++) {
-      final s = segments[i];
-      // merge if gap between previous end and next start is small
-      if (s.start.difference(curEnd) <= gap) {
-        // extend window
-        if (s.end.isAfter(curEnd)) curEnd = s.end;
-      } else {
-        sessions.add(SleepRecord(
-          start: curStart,
-          end: curEnd,
-          source: curSource,
-          type: 'session',
-        ));
-        curStart = s.start;
-        curEnd = s.end;
-        curSource = s.source;
+          final s = DateTime.parse(startIso);
+          final e = DateTime.parse(endIso);
+          final source = (item['dataOrigin']?['packageName'] ?? 'Health Connect').toString();
+
+          out.add(SleepRecord(
+            start: s,
+            end: e,
+            source: source,
+            type: 'session',
+          ));
+        }
       }
-    }
 
-    // push last session
-    sessions.add(SleepRecord(
-      start: curStart,
-      end: curEnd,
-      source: curSource,
-      type: 'session',
-    ));
-
-    // newest-first
-    sessions.sort((a, b) => b.start.compareTo(a.start));
-    return sessions;
-  }
-
-  String _sleepTypeName(health.HealthDataType t) {
-    switch (t) {
-      case health.HealthDataType.SLEEP_ASLEEP:
-        return 'asleep';
-      case health.HealthDataType.SLEEP_AWAKE:
-        return 'awake';
-      case health.HealthDataType.SLEEP_IN_BED:
-        return 'in_bed';
-      default:
-        return t.name.toLowerCase();
+      out.sort((a, b) => b.start.compareTo(a.start));
+      return out;
+    } catch (e, st) {
+      log('readSleepSessions error: $e', stackTrace: st);
+      return <SleepRecord>[];
     }
   }
 }
+
