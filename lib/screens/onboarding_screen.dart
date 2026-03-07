@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/auth_service.dart';
 import '../services/health_connect_service.dart';
 import '../services/storage_keys.dart';
 
@@ -15,6 +16,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  final AuthService _authService = AuthService();
   final HealthConnectService _healthService = HealthConnectService();
 
   bool _isLoading = false;
@@ -198,9 +200,44 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                       );
-                      bool granted = false;
                       try {
-                        granted = await _healthService.requestPermissions();
+                        final user = await _authService.signIn();
+                        if (user == null) {
+                          throw Exception('Google sign-in was cancelled.');
+                        }
+
+                        final granted = await _healthService.requestPermissions();
+
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop(); // Close overlay
+                        setState(() => _isLoading = false);
+
+                        if (granted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                "✅ Signed in as ${user.email}. Syncing sleep data...",
+                              ),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+
+                          final prefs =
+                          await SharedPreferences.getInstance();
+                          await prefs.setBool(
+                              StorageKeys.onboardingComplete, true);
+
+                          widget.onFinished();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "❌ Health permissions are required so DreamCatcher can sync your sleep.",
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       } catch (error) {
                         if (!context.mounted) return;
                         Navigator.of(context).pop();
@@ -208,7 +245,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              'Error requesting Health Connect permissions: $error',
+                              'Sign-in failed: $error',
                             ),
                             backgroundColor: Colors.red,
                           ),
@@ -216,36 +253,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         return;
                       }
 
-                      if (!context.mounted) return;
-                      Navigator.of(context).pop(); // Close overlay
-                      setState(() => _isLoading = false);
-
-                      if (granted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              "✅ Permissions granted! Syncing sleep data...",
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-
-                        final prefs =
-                        await SharedPreferences.getInstance();
-                        await prefs.setBool(
-                            StorageKeys.onboardingComplete, true);
-
-                        widget.onFinished();
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              "❌ Health permissions are required so DreamCatcher can sync your sleep.",
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
                     },
                   ),
                 ),
