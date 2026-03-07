@@ -1,13 +1,14 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 import java.io.FileInputStream
 
-
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("org.jetbrains.kotlin.android")
+}
+
+flutter {
+    source = "../.."
 }
 
 // Load keystore credentials
@@ -21,19 +22,17 @@ android {
 
     namespace = "com.dreamcatcher.dreamcatcher"
     compileSdk = 36
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-
     defaultConfig {
-        compileSdkVersion(36)
-        applicationId = "com.word_game_app"
+        applicationId = "com.dreamcatcher.dreamcatcher"
         minSdk = 26
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -60,17 +59,9 @@ android {
     }
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
-}
-
-
-flutter {
-    source = "../.."
-}
-
 dependencies {
-    implementation("com.google.android.gms:play-services-base:18.9.0")
+    implementation("androidx.activity:activity-ktx:1.12.4")
+    implementation("androidx.fragment:fragment-ktx:1.8.9")
+    implementation("androidx.health.connect:connect-client:1.1.0")
+    implementation("com.google.android.gms:play-services-base:18.10.0")
 }

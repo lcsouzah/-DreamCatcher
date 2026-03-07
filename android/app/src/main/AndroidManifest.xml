@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- 🌐 Network + Health Connect permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.health.READ_SLEEP"
-        tools:ignore="HealthConnectPolicy" />
-    <uses-permission android:name="android.permission.health.WRITE_SLEEP"
-        tools:ignore="HealthConnectPolicy" />
-    <uses-permission android:name="android.permission.health.READ_STEPS"
-        tools:ignore="HealthConnectPolicy" />
-    <uses-permission android:name="android.permission.health.READ_HEART_RATE"
-        tools:ignore="HealthConnectPolicy" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <!-- Optional if you will write data later -->
     <!-- <uses-permission android:name="android.permission.health.WRITE_SLEEP" /> -->
 
@@ -37,10 +32,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
 
+        <activity
+            android:name="com.flutter.health.connect.example.MainActivity"
+            android:exported="true">
             <meta-data
-                android:name="health_permissions" android:resource="@array/health_permissions" />
-
+                android:name="health_permissions"
+                android:resource="@array/health_permissions" />
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
@@ -53,10 +52,6 @@
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
-
-        <meta-data
-            android:name="android.health.connect.HC_PERMISSION_DECLARATION"
-            android:value="true" />
 
     </application>
 

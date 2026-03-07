@@ -38,49 +38,6 @@ class HealthConnectService {
 
   Future<bool> ensurePermissions() => requestPermissions();
 
-  /// Sleep *stages* (detailed segments). Defaults to last 14 days.
-  Future<List<SleepRecord>> readSleep({DateTime? from, DateTime? to}) async {
-    final DateTime end = to ?? DateTime.now();
-    final DateTime start = from ?? end.subtract(const Duration(days: 14));
-    try {
-      final map = await HealthConnectFactory.getRecord(
-        startTime: start,
-        endTime: end,
-        type: HealthConnectDataType.SleepStage, // ✅ single required 'type'
-        ascendingOrder: true,
-      );
-
-      final dynamic stages = map[HealthConnectDataType.SleepStage.name];
-      final out = <SleepRecord>[];
-
-      if (stages is List) {
-        for (final item in stages) {
-          final String? startIso = item['startTime'] as String?;
-          final String? endIso = item['endTime'] as String?;
-          if (startIso == null || endIso == null) continue;
-
-          final s = DateTime.parse(startIso);
-          final e = DateTime.parse(endIso);
-          final stage = (item['stage'] ?? 'stage').toString();
-          final source = (item['dataOrigin']?['packageName'] ?? 'Health Connect').toString();
-
-          out.add(SleepRecord(
-            start: s,
-            end: e,
-            source: source,
-            type: stage.toLowerCase(), // light/deep/rem/awake
-          ));
-        }
-      }
-
-      out.sort((a, b) => b.start.compareTo(a.start));
-      return out;
-    } catch (e, st) {
-      log('readSleep error: $e', stackTrace: st);
-      return <SleepRecord>[];
-    }
-  }
-
   /// Sleep *sessions* (nightly merged). Defaults to last 14 days.
   Future<List<SleepRecord>> readSleepSessions({DateTime? from, DateTime? to}) async {
     final DateTime end = to ?? DateTime.now();
@@ -123,4 +80,3 @@ class HealthConnectService {
     }
   }
 }
-

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:dreamcatcher/services/sleep_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,12 +26,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final HealthConnectService _healthService = HealthConnectService();
   final RewardService _rewardService = RewardService();
 
-
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = false;
+  bool _isClaiming = false;
   bool _permissionDenied = false;
   bool _noData = false;
   bool _useMockData = false;
+  bool _enableDebugLogging = false;
   RewardSnapshot? _rewardSnapshot;
   bool _isLoadingRewards = false;
   SharedPreferences? _prefs;
@@ -63,41 +65,40 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
   int _selectedMoodIndex = 2;
 
-
   @override
   void initState() {
     super.initState();
     _initialize();
     _loadMockRewards();
-    // user must tap Refresh button to request Health Connect permission
   }
 
   Future<void> _initialize() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
+    final bool enableDebug = prefs.getBool(StorageKeys.enableDebugLogging) ?? false;
 
     if (!mounted) return;
 
     setState(() {
       _prefs = prefs;
       _useMockData = useMock;
+      _enableDebugLogging = enableDebug;
     });
 
     await _loadInitialRecords();
   }
 
   Future<void> _loadInitialRecords() async {
+    // Load from cache first
+    final String? cachedRecordsJson = _prefs?.getString(StorageKeys.cachedSleepRecords);
+    if (cachedRecordsJson != null) {
+      final records = SleepRecord.listFromJsonString(cachedRecordsJson);
+      _processAndValidateEntries(records);
+    }
+
     if (_useMockData) {
-      final List<SleepRecord> records =
-      MockSleepService.generateMockData(days: 7);
-      final List<SleepEntry> entries =
-      SleepEntry.aggregateFromRecords(records);
-      if (!mounted) return;
-      setState(() {
-        _entries = entries;
-        _noData = entries.isEmpty;
-        _permissionDenied = false;
-      });
+      final List<SleepRecord> records = MockSleepService.generateMockData(days: 7);
+      _processAndValidateEntries(records);
       return;
     }
 
@@ -106,32 +107,40 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     if (!hasPermissions) {
-      setState(() {
-        _entries = <SleepEntry>[];
-        _noData = true;
-        _permissionDenied = false;
-      });
+      if(cachedRecordsJson == null) {
+        setState(() {
+          _entries = <SleepEntry>[];
+          _noData = true;
+          _permissionDenied = false;
+        });
+      }
       return;
     }
 
-    try {
-      final List<SleepRecord> records =
-      await _healthService.readSleepSessions();
-      final List<SleepEntry> entries =
-      SleepEntry.aggregateFromRecords(records);
-      setState(() {
-        _entries = entries;
-        _noData = entries.isEmpty;
-        _permissionDenied = false;
-      });
-    } catch (error) {
-      debugPrint('[DreamCatcher] ⚠️ Failed to load sleep cache: $error');
-      setState(() {
-        _entries = <SleepEntry>[];
-        _noData = true;
-        _permissionDenied = false;
-      });
-    }
+    await _refresh();
+  }
+
+  void _processAndValidateEntries(List<SleepRecord> records) {
+    final allEntries = SleepEntry.aggregateFromRecords(records, limit: 0);
+    final validatedEntries = allEntries.map((entry) {
+      final history = allEntries.where((e) => e.date.isBefore(entry.date)).toList();
+      return SleepEntry(
+          date: entry.date,
+          start: entry.start,
+          end: entry.end,
+          totalMinutes: entry.totalMinutes,
+          records: entry.records,
+          validationResult: SleepValidator.validateSleepEntryForClaim(entry, history));
+    }).toList();
+    validatedEntries.sort((a, b) => b.date.compareTo(a.date));
+    final limitedEntries = validatedEntries.take(7).toList();
+
+    if (!mounted) return;
+    setState(() {
+      _entries = limitedEntries;
+      _noData = limitedEntries.isEmpty;
+      _permissionDenied = false;
+    });
   }
 
   Future<List<SleepRecord>> _fetchSleepRecords() async {
@@ -142,8 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _setUseMockData(bool value) async {
-    final SharedPreferences prefs =
-        _prefs ?? await SharedPreferences.getInstance();
+    final SharedPreferences prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.setBool(StorageKeys.useMockData, value);
 
     if (!mounted) return;
@@ -162,8 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final RewardSnapshot snapshot =
-      await _rewardService.fetchRewardSnapshot();
+      final RewardSnapshot snapshot = await _rewardService.fetchRewardSnapshot();
       if (!mounted) return;
       setState(() {
         _rewardSnapshot = snapshot;
@@ -179,7 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-
   Future<void> _refresh() async {
     setState(() {
       _isLoading = true;
@@ -189,8 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     debugPrint("[DreamCatcher] 🔄 Starting refresh... requesting permissions");
 
-    final SharedPreferences prefs =
-        _prefs ?? await SharedPreferences.getInstance();
+    final SharedPreferences prefs = _prefs ?? await SharedPreferences.getInstance();
     final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
     if (useMock != _useMockData) {
       setState(() {
@@ -200,26 +205,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (_useMockData) {
-      final List<SleepRecord> records =
-      MockSleepService.generateMockData(days: 7);
-      final List<SleepEntry> entries =
-      SleepEntry.aggregateFromRecords(records);
+      final List<SleepRecord> records = MockSleepService.generateMockData(days: 7);
+      _processAndValidateEntries(records);
+      await _prefs?.setString(StorageKeys.cachedSleepRecords, SleepRecord.listToJsonString(records));
 
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _entries = entries;
-        _noData = entries.isEmpty;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            entries.isEmpty
+            _entries.isEmpty
                 ? '⚠️ Mock mode: no generated sleep data'
-                : '✅ Loaded ${entries.length} nights of mock sleep',
+                : '✅ Loaded ${_entries.length} nights of mock sleep',
           ),
-          backgroundColor: entries.isEmpty ? Colors.orange : Colors.green,
+          backgroundColor: _entries.isEmpty ? Colors.orange : Colors.green,
         ),
       );
       return;
@@ -250,17 +252,16 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('[DreamCatcher] 📡 Fetching sleep records');
 
       final List<SleepRecord> records = await _fetchSleepRecords();
-      final List<SleepEntry> entries = SleepEntry.aggregateFromRecords(records);
+      _processAndValidateEntries(records);
+      await _prefs?.setString(StorageKeys.cachedSleepRecords, SleepRecord.listToJsonString(records));
 
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _entries = entries;
-        _noData = entries.isEmpty;
       });
 
       debugPrint(
-          "[DreamCatcher] ✅ Fetch complete: ${records.length} records, ${entries.length} aggregated entries");
+          "[DreamCatcher] ✅ Fetch complete: ${records.length} records, ${_entries.length} aggregated entries");
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -291,7 +292,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _claimRewards(SleepEntry entry) async {
+    setState(() {
+      _isClaiming = true;
+    });
 
+    final result = await _rewardService.requestClaim(entry: entry, walletAddress: '0x123...abc');
+    await _loadMockRewards();
+
+    if (!mounted) return;
+    setState(() {
+      _isClaiming = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(result.status == RewardClaimStatus.paid
+          ? '🎉 Claim successful! ${result.amount?.toStringAsFixed(2)} DREAM earned.'
+          : '😢 Claim failed: ${result.reason}'),
+      backgroundColor: result.status == RewardClaimStatus.paid ? Colors.green : Colors.red,
+    ));
+  }
 
   SleepEntry? get _todayEntry {
     final DateTime now = DateTime.now();
@@ -335,7 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final double averageTrend = _mockTrendHours.isEmpty
         ? 0
         : _mockTrendHours.reduce((double a, double b) => a + b) /
-        _mockTrendHours.length;
+            _mockTrendHours.length;
+
+    final bool isEligible = lastNightEntry?.validationResult?.isEligible ?? false;
 
     return Scaffold(
       body: Stack(
@@ -383,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final double contentWidth =
                     constraints.maxWidth - (horizontalPadding * 2);
                 final double cardWidth =
-                isTablet ? (contentWidth - 24) / 2 : contentWidth;
+                    isTablet ? (contentWidth - 24) / 2 : contentWidth;
                 final double fullWidth = contentWidth;
 
                 return SingleChildScrollView(
@@ -436,13 +458,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (_permissionDenied)
                         const ErrorBanner(
                           message:
-                          'Permission not granted. Tap Refresh to try requesting access again.',
+                              'Permission not granted. Tap Refresh to try requesting access again.',
                         ),
                       if (_permissionDenied) const SizedBox(height: 16),
                       if (_noData && !_permissionDenied)
                         const ErrorBanner(
                           message:
-                          'No data found. Sync with Health Connect to start earning for your sleep.',
+                              'No data found. Sync with Health Connect to start earning for your sleep.',
                           icon: Icons.bedtime,
                           backgroundColor: Color(0xFF1E2F3B),
                         ),
@@ -494,6 +516,28 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: isTablet ? fullWidth : cardWidth,
+                        child: PrimaryButton(
+                          label: isEligible ? 'Claim Rewards' : 'Not eligible for rewards',
+                          onPressed: isEligible && !_isClaiming
+                              ? () => _claimRewards(lastNightEntry!)
+                              : null,
+                          isLoading: _isClaiming,
+                        ),
+                      ),
+                       if (_enableDebugLogging && lastNightEntry?.validationResult?.reasons.isNotEmpty == true)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Validation Failures:', style: theme.textTheme.bodySmall?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                              ...?lastNightEntry?.validationResult?.reasons.map((r) => Text(' - $r', style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70)))
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 24),
                       SizedBox(
                         width: isTablet ? fullWidth : cardWidth,
@@ -576,9 +620,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     hours.toStringAsFixed(1),
                     style: theme.textTheme.displaySmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ) ??
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ) ??
                         const TextStyle(
                           color: Colors.white,
                           fontSize: 48,
@@ -601,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(16),
                       color: Colors.white.withOpacity(0.08),
                       border:
-                      Border.all(color: Colors.white.withOpacity(0.12)),
+                          Border.all(color: Colors.white.withOpacity(0.12)),
                     ),
                     child: Text(
                       range,
@@ -635,9 +679,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         '$goalPercent%',
                         style: theme.textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ) ??
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ) ??
                             const TextStyle(
                               color: Colors.white,
                               fontSize: 20,
@@ -664,13 +708,13 @@ class _HomeScreenState extends State<HomeScreen> {
           children: highlights
               .map(
                 (Map<String, String> highlight) => SizedBox(
-              width: 160,
-              child: _GlassStatChip(
-                label: highlight['label']!,
-                value: highlight['value']!,
-              ),
-            ),
-          )
+                  width: 160,
+                  child: _GlassStatChip(
+                    label: highlight['label']!,
+                    value: highlight['value']!,
+                  ),
+                ),
+              )
               .toList(),
         ),
       ],
@@ -678,21 +722,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTrendCard(
-      BuildContext context,
-      ThemeData theme,
-      double averageTrend,
-      ) {
+    BuildContext context,
+    ThemeData theme,
+    double averageTrend,
+  ) {
     final double bestNight =
-    _mockTrendHours.isEmpty ? 0 : _mockTrendHours.reduce(math.max);
+        _mockTrendHours.isEmpty ? 0 : _mockTrendHours.reduce(math.max);
     final double totalHours = _mockTrendHours.fold<double>(
       0,
-          (double previousValue, double element) => previousValue + element,
+      (double previousValue, double element) => previousValue + element,
     );
     final DateTime now = DateTime.now();
     final DateFormat formatter = DateFormat('E');
     final List<String> labels = List<String>.generate(
       _mockTrendHours.length,
-          (int index) {
+      (int index) {
         final DateTime day = now.subtract(
           Duration(days: _mockTrendHours.length - 1 - index),
         );
@@ -777,9 +821,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 '${_rewardSnapshot!.totalDreamEarned.toStringAsFixed(2)} DREAM',
                 style: theme.textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ) ??
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ) ??
                     const TextStyle(
                       color: Colors.white,
                       fontSize: 28,
@@ -809,7 +853,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _GlassSummaryTile(
                 label: 'Earned this week',
                 value:
-                '${_rewardSnapshot!.weeklyDreamEarned.toStringAsFixed(2)} DREAM',
+                    '${_rewardSnapshot!.weeklyDreamEarned.toStringAsFixed(2)} DREAM',
                 icon: Icons.auto_graph,
               ),
             ],
@@ -867,12 +911,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   boxShadow: isSelected
                       ? <BoxShadow>[
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.25),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ]
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.25),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ]
                       : null,
                 ),
                 child: Column(
@@ -888,7 +932,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: Colors.white,
                         fontWeight:
-                        isSelected ? FontWeight.w600 : FontWeight.w500,
+                            isSelected ? FontWeight.w600 : FontWeight.w500,
                       ),
                     ),
                   ],
@@ -1004,14 +1048,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _formatRange(BuildContext context, SleepEntry entry) {
     final MaterialLocalizations localizations =
-    MaterialLocalizations.of(context);
+        MaterialLocalizations.of(context);
     final String start =
-    localizations.formatTimeOfDay(TimeOfDay.fromDateTime(entry.start));
+        localizations.formatTimeOfDay(TimeOfDay.fromDateTime(entry.start));
     final String end =
-    localizations.formatTimeOfDay(TimeOfDay.fromDateTime(entry.end));
+        localizations.formatTimeOfDay(TimeOfDay.fromDateTime(entry.end));
     return '$start – $end';
   }
-
 }
 
 class GlassCard extends StatelessWidget {
@@ -1068,9 +1111,9 @@ class _GlassCardHeader extends StatelessWidget {
           child: Text(
             title,
             style: theme.textTheme.titleLarge?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ) ??
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ) ??
                 const TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -1126,9 +1169,9 @@ class _GlassSummaryTile extends StatelessWidget {
                 Text(
                   value,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ) ??
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ) ??
                       const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -1173,9 +1216,9 @@ class _GlassStatChip extends StatelessWidget {
           Text(
             value,
             style: theme.textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ) ??
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ) ??
                 const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -1205,7 +1248,7 @@ class _SleepTrendChart extends StatelessWidget {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double maxValue =
-        data.isEmpty ? 0 : data.reduce((double a, double b) => math.max(a, b));
+            data.isEmpty ? 0 : data.reduce((double a, double b) => math.max(a, b));
         final double labelHeight = 24;
         final double chartHeight = (constraints.maxHeight - labelHeight)
             .clamp(60, constraints.maxHeight);
@@ -1263,7 +1306,7 @@ class _SleepTrendChart extends StatelessWidget {
                     children: List<Widget>.generate(data.length, (int index) {
                       final double value = data[index];
                       final double heightFactor =
-                      maxValue == 0 ? 0 : (value / maxValue).clamp(0, 1);
+                          maxValue == 0 ? 0 : (value / maxValue).clamp(0, 1);
                       return Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 6),

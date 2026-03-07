@@ -2,6 +2,8 @@ import com.android.build.gradle.BaseExtension
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
 import org.gradle.kotlin.dsl.findByType
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 allprojects {
     repositories {
@@ -17,35 +19,47 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
-subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-fun Project.applyNamespaceFallback() {
-    val androidExtension = extensions.findByType(BaseExtension::class.java) ?: return
-    if (androidExtension.namespace?.isNotBlank() == true) return
-
-    val manifestFile = file("src/main/AndroidManifest.xml")
-    if (!manifestFile.exists()) return
-
-    val manifestContent = manifestFile.readText()
-    val manifestPackage = Regex("package=\"([^\"]+)\"")
-        .find(manifestContent)
-        ?.groupValues
-        ?.getOrNull(1)
-
-    if (!manifestPackage.isNullOrBlank()) {
-        androidExtension.namespace = manifestPackage
-    }
-}
 
 subprojects {
+    // Apply Kotlin plugin if Kotlin sources are present but plugin is not applied
     pluginManager.withPlugin("com.android.library") {
-        applyNamespaceFallback()
+        if (file("src/main/kotlin").exists() && !plugins.hasPlugin("org.jetbrains.kotlin.android")) {
+            pluginManager.apply("org.jetbrains.kotlin.android")
+        }
+    }
+    pluginManager.withPlugin("com.android.application") {
+        if (file("src/main/kotlin").exists() && !plugins.hasPlugin("org.jetbrains.kotlin.android")) {
+            pluginManager.apply("org.jetbrains.kotlin.android")
+        }
     }
 
-    pluginManager.withPlugin("com.android.application") {
-        applyNamespaceFallback()
+    afterEvaluate {
+        val android = extensions.findByType(BaseExtension::class.java)
+        android?.apply {
+            if (namespace == null) {
+                val manifestFile = file("src/main/AndroidManifest.xml")
+                if (manifestFile.exists()) {
+                    val manifestContent = manifestFile.readText()
+                    val manifestPackage = Regex("package=\"([^\"]+)\"")
+                        .find(manifestContent)
+                        ?.groupValues
+                        ?.getOrNull(1)
+                    if (manifestPackage != null) {
+                        namespace = manifestPackage
+                    }
+                }
+            }
+            compileSdkVersion(36)
+            defaultConfig.targetSdkVersion(36)
+            compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+            compileOptions.targetCompatibility = JavaVersion.VERSION_17
+        }
+
+        tasks.withType<KotlinCompile>().configureEach {
+            compilerOptions {
+                jvmTarget.set(JvmTarget.JVM_17)
+            }
+        }
     }
 }
 

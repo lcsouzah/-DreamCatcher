@@ -14,7 +14,7 @@ dependencies:
   # Core state & HTTP
   provider: ^6.1.2
   http: ^1.2.2
-  shared_preferences: ^2.3.2
+  shared_preferences: ^2.2.2
   intl: ^0.20.2
   url_launcher: ^6.3.1
   package_info_plus: ^9.0.0
@@ -22,14 +22,13 @@ dependencies:
   permission_handler: ^12.0.1
   flutter_dotenv: ^6.0.0
   supabase_flutter: ^2.5.7
+  flutter_health_connect: ^1.2.3
 
   # Google Sign-In (works with patched auth_service.dart using alias)
   google_sign_in: ^7.2.0
   google_sign_in_platform_interface: ^3.1.0
   googleapis: any
 
-  # --- HEALTH: keep ONLY this one; remove others like `health_connect`
-  flutter_health_connect: ^1.2.3
 
   # Cupertino icons
   cupertino_icons: ^1.0.8

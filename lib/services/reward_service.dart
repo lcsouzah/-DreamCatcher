@@ -1,5 +1,18 @@
 import 'dart:async';
 
+import 'package:dreamcatcher/models/sleep_entry.dart';
+
+enum RewardClaimStatus { pending, approved, rejected, paid }
+
+class RewardClaimResult {
+  RewardClaimResult(
+      {required this.status, this.amount, this.reason, this.referenceId});
+  final RewardClaimStatus status;
+  final double? amount;
+  final String? reason;
+  final String? referenceId;
+}
+
 /// Simple data model representing the mock reward snapshot that the
 /// application can render while the real backend is under development.
 class RewardSnapshot {
@@ -66,6 +79,31 @@ class RewardService {
   Future<RewardSnapshot> fetchRewardSnapshot() async {
     await Future<void>.delayed(const Duration(milliseconds: 350));
     return _mockSnapshot;
+  }
+
+  Future<RewardClaimResult> requestClaim(
+      {required SleepEntry entry, required String walletAddress}) async {
+    // Stubbed backend logic
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (entry.validationResult?.isEligible == false) {
+      return RewardClaimResult(
+          status: RewardClaimStatus.rejected,
+          reason: entry.validationResult?.reasons.first ?? 'Not eligible');
+    }
+
+    final double estimatedReward = await estimateDreamForSleep(entry.totalHours);
+
+    _mockSnapshot = _mockSnapshot.copyWith(
+      pendingDream: _mockSnapshot.pendingDream - estimatedReward,
+      totalDreamEarned: _mockSnapshot.totalDreamEarned + estimatedReward,
+      lastUpdated: DateTime.now(),
+    );
+
+    return RewardClaimResult(
+        status: RewardClaimStatus.paid,
+        amount: estimatedReward,
+        referenceId: 'txn_${DateTime.now().millisecondsSinceEpoch}');
   }
 
   /// Estimates how many $DREAM a user could earn for the provided number of

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dreamcatcher/services/sleep_validator.dart';
 import 'sleep_record.dart';
 
 class SleepEntry {
@@ -8,6 +9,7 @@ class SleepEntry {
     required this.end,
     required this.totalMinutes,
     required this.records, // 👈 added field
+    this.validationResult,
   });
 
   final DateTime date;
@@ -15,6 +17,7 @@ class SleepEntry {
   final DateTime end;
   final int totalMinutes;
   final List<SleepRecord> records; // 👈 keeps raw stage data for detail screen
+  final ValidationResult? validationResult;
 
   double get totalHours => totalMinutes / 60.0;
   Duration get duration => Duration(minutes: totalMinutes);
