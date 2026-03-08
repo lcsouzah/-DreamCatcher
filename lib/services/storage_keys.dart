@@ -11,7 +11,13 @@ class StorageKeys {
   static const String enableDebugLogging = 'enableDebugLogging';
   static const String useMockData = 'useMockData';
 }
-
 /// Google OAuth Client ID for DreamCatcher (Google Fit integration)
 const String kGoogleFitClientId =
     "890943023129-al2a6bq1n9l3em7abhsfi1pmvkg60o9p.apps.googleusercontent.com";
+
+/// Preferred Google OAuth *web/server* client ID for Android sign-in.
+/// Provide via: --dart-define=GOOGLE_SERVER_CLIENT_ID=...
+const String kGoogleServerClientId = String.fromEnvironment(
+  'GOOGLE_SERVER_CLIENT_ID',
+  defaultValue: '',
+);

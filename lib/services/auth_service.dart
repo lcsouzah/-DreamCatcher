@@ -2,6 +2,8 @@
 import 'dart:async';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart' as gsi;
 
+import 'storage_keys.dart';
+
 class GoogleUserProfile {
   const GoogleUserProfile({
     required this.id,
@@ -30,10 +32,18 @@ class AuthService {
   /// Current signed-in user (if any).
   GoogleUserProfile? get currentUser => _current;
 
+
+
+  bool _initialized = false;
+
   Future<void> _ensureInitialized() async {
-    // If your app doesn't parse google-services.json for server client ID,
-    // you can supply it here via InitParameters(serverClientId: '...')
-    await gsi.GoogleSignInPlatform.instance.init(const gsi.InitParameters());
+    if (_initialized) return;
+    await gsi.GoogleSignInPlatform.instance.init(
+      const gsi.InitParameters(
+        serverClientId: kGoogleFitClientId,
+      ),
+    );
+    _initialized = true;
   }
 
   Future<GoogleUserProfile?> signIn() async {

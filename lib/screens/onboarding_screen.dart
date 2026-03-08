@@ -183,19 +183,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   ),
                                   const SizedBox(height: 20),
 
-                                  // Text
-                                  const Text(
-                                    "Connecting to Health Connect...",
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500,
-                                      letterSpacing: 0.3,
+                                    // Text
+                                    const Text(
+                                      "Connecting your Google account...",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        letterSpacing: 0.3,
+                                      ),
                                     ),
+                                    ],
                                   ),
-                                ],
-                              ),
                             ),
                           ),
                         ),
@@ -242,11 +242,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         if (!context.mounted) return;
                         Navigator.of(context).pop();
                         setState(() => _isLoading = false);
+                        final message = error.toString().replaceFirst('Exception: ', '');
+                        setState(() => _errorMessage = message);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(
-                              'Sign-in failed: $error',
-                            ),
+                            content: Text(message),
                             backgroundColor: Colors.red,
                           ),
                         );
