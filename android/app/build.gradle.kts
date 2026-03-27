@@ -1,3 +1,6 @@
+@file:Suppress("DEPRECATION")
+
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 import java.io.FileInputStream
 
@@ -5,6 +8,7 @@ plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 flutter {
@@ -59,9 +63,24 @@ android {
     }
 }
 
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
+
+flutter {
+    source = "../.."
+}
+
 dependencies {
-    implementation("androidx.activity:activity-ktx:1.12.4")
+    implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
+    implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
     implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.google.android.gms:play-services-base:18.10.0")
+    implementation("com.google.android.play:integrity:1.6.0")
+    implementation("com.google.firebase:firebase-analytics:23.2.0")
 }

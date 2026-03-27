@@ -1,5 +1,54 @@
-{"installed":{"client_id":"890943023129-al2a6bq1n9l3em7abhsfi1pmvkg60o9p.apps.googleusercontent.com",
-  "project_id":"dream-fit-474021",
-  "auth_uri":"https://accounts.google.com/o/oauth2/auth",
-  "token_uri":"https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs"}}
+{
+  "project_info": {
+    "project_number": "84818727473",
+    "project_id": "dreamcatcher-4c1c8",
+    "storage_bucket": "dreamcatcher-4c1c8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84818727473:android:bb789d3b6074a47e8c3b10",
+        "android_client_info": {
+          "package_name": "com.dreamcatcher.dreamcatcher"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "84818727473-davdjsgcecfu9umtf48tfo8uugrqvaa0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dreamcatcher.dreamcatcher",
+            "certificate_hash": "32e472fef94811add60dbb8a1f4c6806ee7b6434"
+          }
+        },
+        {
+          "client_id": "84818727473-jccoihis16djln32vuc266olbfio1qqv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dreamcatcher.dreamcatcher",
+            "certificate_hash": "f2a401b85df38916b26b658e0e6d567b8baaf461"
+          }
+        },
+        {
+          "client_id": "84818727473-lccd9ah8b6br9vquadj36brsarrf3n2b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dreamcatcher.dreamcatcher",
+            "certificate_hash": "efa9633441c4ba3e397e333a2bbff82d88ea178d"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmH2IXYbMKcU4ijXRuD0564RNx3YfcYlk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

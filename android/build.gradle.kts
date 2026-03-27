@@ -1,7 +1,7 @@
+@file:Suppress("DEPRECATION")
+
 import com.android.build.gradle.BaseExtension
-import org.gradle.api.Project
 import org.gradle.api.file.Directory
-import org.gradle.kotlin.dsl.findByType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 

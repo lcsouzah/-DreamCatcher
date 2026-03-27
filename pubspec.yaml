@@ -2,7 +2,7 @@ name: dreamcatcher
 description: "Sleep-to-earn app powered by $DREAM token."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.8.1
