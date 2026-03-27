@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io' show Platform;
+
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart'
 as gsi;
 
@@ -37,6 +39,13 @@ class AuthService {
     if (_initialized) return;
 
     final String serverClientId = kGoogleServerClientId.trim();
+
+    if (Platform.isAndroid && serverClientId.isEmpty) {
+      throw Exception(
+        'Google Sign-In is not configured. Missing WEB OAuth client ID. '
+            'Set --dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>.',
+      );
+    }
 
     if (serverClientId.isNotEmpty) {
       developer.log(
@@ -100,8 +109,7 @@ class AuthService {
       );
 
       final gsi.AuthenticationResults? result =
-      await gsi.GoogleSignInPlatform.instance
-          .attemptLightweightAuthentication(
+      await gsi.GoogleSignInPlatform.instance.attemptLightweightAuthentication(
         const gsi.AttemptLightweightAuthenticationParameters(),
       );
 
@@ -122,7 +130,6 @@ class AuthService {
       return null;
     }
   }
-
   Future<void> signOut() async {
     await _ensureInitialized();
 

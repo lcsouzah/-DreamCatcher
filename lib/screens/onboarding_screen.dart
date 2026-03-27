@@ -242,7 +242,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         if (!context.mounted) return;
                         Navigator.of(context).pop();
                         setState(() => _isLoading = false);
-                        final message = error.toString().replaceFirst('Exception: ', '');
+                        final rawMessage =
+                        error.toString().replaceFirst('Exception: ', '');
+                        final message = rawMessage.contains(
+                            'Missing WEB OAuth client ID')
+                            ? 'Google Sign-In is not configured yet. Please contact support or set GOOGLE_SERVER_CLIENT_ID.'
+                            : rawMessage;
                         setState(() => _errorMessage = message);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
