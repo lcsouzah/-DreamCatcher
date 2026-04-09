@@ -1,10 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:io' show Platform;
-
-import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart'
-as gsi;
-
+import 'package:google_sign_in/google_sign_in.dart';
 import 'storage_keys.dart';
 
 class GoogleUserProfile {
@@ -27,7 +23,7 @@ class AuthService {
   factory AuthService() => _instance;
 
   final StreamController<GoogleUserProfile?> _controller =
-  StreamController<GoogleUserProfile?>.broadcast();
+      StreamController<GoogleUserProfile?>.broadcast();
 
   GoogleUserProfile? _current;
   bool _initialized = false;
@@ -38,34 +34,23 @@ class AuthService {
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
 
-    final String serverClientId = kGoogleServerClientId.trim();
+    const String serverClientId = '84818727473-dp55em8h0mfsjlsp63m4cqnrbuguuipc.apps.googleusercontent.com';
 
-    if (Platform.isAndroid && serverClientId.isEmpty) {
-      throw Exception(
-        'Google Sign-In is not configured. Missing WEB OAuth client ID. '
-            'Set --dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>.',
-      );
-    }
+    developer.log('[DreamCatcher][Auth] Initializing GoogleSignIn (Bypass Firebase).', name: 'AuthService');
 
-    if (serverClientId.isNotEmpty) {
-      developer.log(
-        '[DreamCatcher][Auth] init with serverClientId',
-        name: 'AuthService',
-      );
-      await gsi.GoogleSignInPlatform.instance.init(
-        gsi.InitParameters(
-          serverClientId: serverClientId,
-        ),
-      );
-    } else {
-      developer.log(
-        '[DreamCatcher][Auth] init without serverClientId',
-        name: 'AuthService',
-      );
-      await gsi.GoogleSignInPlatform.instance.init(
-        const gsi.InitParameters(),
-      );
-    }
+    await GoogleSignIn.instance.initialize(
+      serverClientId: serverClientId,
+    );
+
+    GoogleSignIn.instance.authenticationEvents.listen((event) {
+      if (event is GoogleSignInAuthenticationEventSignIn) {
+        _updateUser(event.user);
+      } else if (event is GoogleSignInAuthenticationEventSignOut) {
+        _updateUser(null);
+      }
+    }, onError: (error) {
+      developer.log('[DreamCatcher][Auth] Status stream error: $error', name: 'AuthService');
+    });
 
     _initialized = true;
   }
@@ -75,13 +60,12 @@ class AuthService {
 
     try {
       developer.log('[DreamCatcher][Auth] signIn start', name: 'AuthService');
-
-      final gsi.AuthenticationResults result =
-      await gsi.GoogleSignInPlatform.instance.authenticate(
-        const gsi.AuthenticateParameters(),
-      );
-
-      final GoogleUserProfile? user = _setUser(result.user);
+      
+      // Explicitly sign out first to ensure the account picker always appears for the demo
+      await GoogleSignIn.instance.signOut().catchError((_) => null);
+      
+      final GoogleSignInAccount account = await GoogleSignIn.instance.authenticate();
+      final GoogleUserProfile? user = _updateUser(account);
 
       developer.log(
         '[DreamCatcher][Auth] signIn success: ${user?.email}',
@@ -108,19 +92,16 @@ class AuthService {
         name: 'AuthService',
       );
 
-      final gsi.AuthenticationResults? result =
-      await gsi.GoogleSignInPlatform.instance.attemptLightweightAuthentication(
-        const gsi.AttemptLightweightAuthenticationParameters(),
-      );
+      final Future<GoogleSignInAccount?>? attempt = GoogleSignIn.instance.attemptLightweightAuthentication();
+      if (attempt == null) return null;
 
-      final GoogleUserProfile? user = _setUser(result?.user);
+      final GoogleSignInAccount? account = await attempt;
+      
+      if (account != null) {
+        return _updateUser(account);
+      }
 
-      developer.log(
-        '[DreamCatcher][Auth] signInSilently result: ${user?.email}',
-        name: 'AuthService',
-      );
-
-      return user;
+      return null;
     } catch (e, st) {
       developer.log(
         '[DreamCatcher][Auth] signInSilently failed: $e',
@@ -130,36 +111,37 @@ class AuthService {
       return null;
     }
   }
+
   Future<void> signOut() async {
     await _ensureInitialized();
 
     try {
       developer.log('[DreamCatcher][Auth] signOut start', name: 'AuthService');
-      await gsi.GoogleSignInPlatform.instance
-          .disconnect(const gsi.DisconnectParams());
+      await GoogleSignIn.instance.disconnect().catchError((_) => null);
+      await GoogleSignIn.instance.signOut();
     } catch (e, st) {
       developer.log(
-        '[DreamCatcher][Auth] signOut disconnect failed: $e',
+        '[DreamCatcher][Auth] signOut failed: $e',
         name: 'AuthService',
         stackTrace: st,
       );
     } finally {
-      _setUser(null);
+      _updateUser(null);
     }
   }
 
-  GoogleUserProfile? _setUser(gsi.GoogleSignInUserData? user) {
-    if (user == null) {
+  GoogleUserProfile? _updateUser(GoogleSignInAccount? account) {
+    if (account == null) {
       _current = null;
       _controller.add(null);
       return null;
     }
 
     final GoogleUserProfile mapped = GoogleUserProfile(
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      photoUrl: user.photoUrl,
+      id: account.id,
+      email: account.email,
+      displayName: account.displayName,
+      photoUrl: account.photoUrl,
     );
 
     _current = mapped;

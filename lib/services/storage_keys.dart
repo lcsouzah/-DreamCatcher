@@ -14,15 +14,7 @@ class StorageKeys {
 
 /// DreamCatcher WEB OAuth client ID (server client ID) used by Android Google Sign-In.
 ///
-/// Preferred source:
-///   --dart-define=GOOGLE_SERVER_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
-///
-/// Backward compatibility:
-///   --dart-define=GOOGLE_WEB_CLIENT_ID=<web-client-id>.apps.googleusercontent.com
-const String kGoogleServerClientId = String.fromEnvironment(
-  'GOOGLE_SERVER_CLIENT_ID',
-  defaultValue: String.fromEnvironment(
-    'GOOGLE_WEB_CLIENT_ID',
-    defaultValue: '',
-  ),
-);
+/// This is used as the serverClientId in GoogleSignIn.initialize.
+/// 
+/// The source is now centralized in the .env file.
+const String kGoogleServerClientId = '84818727473-dp55em8h0mfsjlsp63m4cqnrbuguuipc.apps.googleusercontent.com';

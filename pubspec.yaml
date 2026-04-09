@@ -11,6 +11,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Firebase Core & Auth
+  firebase_core: ^4.6.0
+  firebase_auth: ^6.3.0
+
   # Core state & HTTP
   provider: ^6.1.2
   http: ^1.2.2
@@ -24,11 +28,9 @@ dependencies:
   supabase_flutter: ^2.5.7
   flutter_health_connect: ^1.2.3
 
-  # Google Sign-In (works with patched auth_service.dart using alias)
+  # Google Sign-In
   google_sign_in: ^7.2.0
-  google_sign_in_platform_interface: ^3.1.0
   googleapis: any
-
 
   # Cupertino icons
   cupertino_icons: ^1.0.8
@@ -49,6 +51,7 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    - .env
     - assets/logo/dreamcatcher_logo.png
     - assets/screens/
     - assets/fonts/

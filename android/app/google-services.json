@@ -22,20 +22,8 @@
           }
         },
         {
-          "client_id": "84818727473-jccoihis16djln32vuc266olbfio1qqv.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.dreamcatcher.dreamcatcher",
-            "certificate_hash": "f2a401b85df38916b26b658e0e6d567b8baaf461"
-          }
-        },
-        {
-          "client_id": "84818727473-lccd9ah8b6br9vquadj36brsarrf3n2b.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.dreamcatcher.dreamcatcher",
-            "certificate_hash": "efa9633441c4ba3e397e333a2bbff82d88ea178d"
-          }
+          "client_id": "84818727473-u5j62lpu12trjbvvjn5bplrmat6intoa.apps.googleusercontent.com",
+          "client_type": 3
         }
       ],
       "api_key": [
@@ -45,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "84818727473-dp55em8h0mfsjlsp63m4cqnrbuguuipc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
