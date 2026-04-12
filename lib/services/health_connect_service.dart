@@ -34,9 +34,12 @@ class HealthConnectService {
 
     _isRequesting = true;
     try {
-      log('[Health] Requesting permissions...');
+      log('[Health] Requesting Health permissions');
+      // Add delay before calling to prevent UI glitches or race conditions
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       final ok = await HealthConnectFactory.requestPermissions(_sleepTypes, readOnly: true);
-      log('[Health] requestPermissions result: $ok');
+      log('[Health] Permission result: $ok');
       return ok;
     } catch (e, st) {
       log('[Health] requestPermissions error: $e', stackTrace: st);

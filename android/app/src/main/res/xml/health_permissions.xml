@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<health-permissions xmlns:android="http://schemas.android.com/apk/res/android">
+    <read-permission android:name="android.permission.health.READ_SLEEP" />
+</health-permissions>

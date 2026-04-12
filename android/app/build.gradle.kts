@@ -8,7 +8,7 @@ plugins {
     id("com.android.application")
     id("dev.flutter.flutter-gradle-plugin")
     id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services")
+    // REMOVED: com.google.gms.google-services (No longer using Firebase)
 }
 
 flutter {
@@ -25,7 +25,7 @@ if (keystorePropertiesFile.exists()) {
 android {
 
     namespace = "com.dreamcatcher.dreamcatcher"
-    compileSdk = 36
+    compileSdk = 35 // Stabilized to 35
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -36,7 +36,7 @@ android {
     defaultConfig {
         applicationId = "com.dreamcatcher.dreamcatcher"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 35 // Stabilized to 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -76,11 +76,9 @@ flutter {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
+    // REMOVED Firebase BOM and Analytics
     implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
     implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.google.android.gms:play-services-base:18.10.0")
-    implementation("com.google.android.play:integrity:1.6.0")
-    implementation("com.google.firebase:firebase-analytics:23.2.0")
 }

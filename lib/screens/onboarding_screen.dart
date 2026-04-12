@@ -1,9 +1,11 @@
+import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_service.dart';
-import '../services/health_connect_service.dart';
 import '../services/storage_keys.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -17,10 +19,35 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final AuthService _authService = AuthService();
-  final HealthConnectService _healthService = HealthConnectService();
 
   bool _isLoading = false;
   String? _errorMessage;
+  StreamSubscription<AuthState>? _authStateSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for session changes to detect when the user returns from the browser
+    _authStateSubscription = _authService.onAuthStateChange.listen((data) async {
+      final Session? session = data.session;
+      if (session != null && mounted) {
+        developer.log('[DreamCatcher][UI] Supabase Session Acquired: ${session.user.email}', name: 'Onboarding');
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(StorageKeys.onboardingComplete, true);
+
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        widget.onFinished();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,9 +93,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
-                    child: Column(
+                    child: const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const <Widget>[
+                      children: <Widget>[
                         Text(
                           'To get started we need to:',
                           style: TextStyle(
@@ -126,138 +153,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ? null
                         : () async {
                       setState(() => _isLoading = true);
+                      _errorMessage = null;
 
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                          child: Dialog(
-                            backgroundColor: Colors.white.withOpacity(0.1),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Container(
-                              width: 240,
-                              padding: const EdgeInsets.all(28),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(24),
-                                gradient: const LinearGradient(
-                                  colors: [Color(0x802C1E5D), Color(0x803A1675)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.deepPurpleAccent.withOpacity(0.4),
-                                    blurRadius: 16,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                                border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Spinner
-                                  const CircularProgressIndicator(
-                                    strokeWidth: 3,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.deepPurpleAccent,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
+                      developer.log('[DreamCatcher][UI] Initiating Google Sign-In via Supabase', name: 'Onboarding');
 
-                                  // Rotating DreamCatcher icon animation
-                                  AnimatedRotation(
-                                    duration: const Duration(seconds: 6),
-                                    turns: 1,
-                                    curve: Curves.linear,
-                                    child: Image.asset(
-                                      'assets/logo/dreamcatcher_logo.png', // 🔮 your DreamCatcher logo
-                                      height: 56,
-                                      width: 56,
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-
-                                    // Text
-                                    const Text(
-                                      "Connecting your Google account...",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    ],
-                                  ),
-                            ),
-                          ),
-                        ),
-                      );
                       try {
-                        final user = await _authService.signIn();
-                        if (user == null) {
-                          throw Exception('Google sign-in was cancelled.');
-                        }
-
-                        final granted = await _healthService.requestPermissions();
-
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop(); // Close overlay
-                        setState(() => _isLoading = false);
-
-                        if (granted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                "✅ Signed in as ${user.email}. Syncing sleep data...",
-                              ),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-
-                          final prefs =
-                          await SharedPreferences.getInstance();
-                          await prefs.setBool(
-                              StorageKeys.onboardingComplete, true);
-
-                          widget.onFinished();
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "❌ Health permissions are required so DreamCatcher can sync your sleep.",
-                              ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
+                        await _authService.signInWithGoogle();
                       } catch (error) {
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop();
-                        setState(() => _isLoading = false);
-                        final rawMessage =
-                        error.toString().replaceFirst('Exception: ', '');
-                        final message = rawMessage.contains(
-                            'Missing WEB OAuth client ID')
-                            ? 'Google Sign-In is not configured yet. Please contact support or set GOOGLE_SERVER_CLIENT_ID.'
-                            : rawMessage;
-                        setState(() => _errorMessage = message);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(message),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                        return;
+                        developer.log('[DreamCatcher][UI] Login Initiation Error: $error', name: 'Onboarding');
+                        if (mounted) {
+                          setState(() {
+                            _isLoading = false;
+                            _errorMessage = error.toString();
+                          });
+                        }
                       }
-
                     },
                   ),
                 ),

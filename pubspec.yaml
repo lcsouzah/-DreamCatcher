@@ -11,26 +11,18 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Firebase Core & Auth
-  firebase_core: ^4.6.0
-  firebase_auth: ^6.3.0
-
   # Core state & HTTP
   provider: ^6.1.2
   http: ^1.2.2
   shared_preferences: ^2.2.2
   intl: ^0.20.2
   url_launcher: ^6.3.1
-  package_info_plus: ^9.0.0
-  share_plus: ^12.0.0
+  package_info_plus: ^10.0.0
+  share_plus: ^13.0.0
   permission_handler: ^12.0.1
   flutter_dotenv: ^6.0.0
   supabase_flutter: ^2.5.7
   flutter_health_connect: ^1.2.3
-
-  # Google Sign-In
-  google_sign_in: ^7.2.0
-  googleapis: any
 
   # Cupertino icons
   cupertino_icons: ^1.0.8
@@ -54,8 +46,3 @@ flutter:
     - .env
     - assets/logo/dreamcatcher_logo.png
     - assets/screens/
-    - assets/fonts/
-  fonts:
-    - family: DreamFont
-      fonts:
-        - asset: assets/fonts/DreamFont/DreamFont.otf

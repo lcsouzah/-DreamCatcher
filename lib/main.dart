@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
@@ -10,7 +11,6 @@ import 'screens/settings_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'services/auth_service.dart';
 import 'services/storage_keys.dart';
-import 'services/supabase_initializer.dart';
 import 'themes/app_theme.dart';
 
 Future<void> main() async {
@@ -25,13 +25,16 @@ Future<void> main() async {
     });
 
     // 2. Initialize Supabase
-    await SupabaseInitializer.initialize();
+    // Using explicit credentials to ensure initialization before any instance call.
+    await Supabase.initialize(
+      url: 'https://ewtemanzzchhglsvbqns.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dGVtYW56emNoaGdsc3ZicW5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjI5ODIsImV4cCI6MjA5MTMzODk4Mn0.r6yuCl14L5a2YbbnZe6hSBFIWk5faI_H-Fc9ViPTJQM',
+    );
+    developer.log('[DreamCatcher][Main] Supabase initialized', name: 'Main');
 
-    // 3. Initialize Auth (Silent sign-in)
-    // We bypassed Firebase to focus on a stable demo with pure Google Sign-In.
-    final authService = AuthService();
-    await authService.signInSilently();
-    developer.log('[DreamCatcher][Main] Auth initialized', name: 'Main');
+    // 3. Auth Service initialization
+    AuthService();
+    developer.log('[DreamCatcher][Main] Auth service ready', name: 'Main');
 
   } catch (e, st) {
     developer.log('[DreamCatcher][Main] Critical initialization error: $e', name: 'Main', stackTrace: st);

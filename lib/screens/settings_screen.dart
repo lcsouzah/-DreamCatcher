@@ -8,6 +8,7 @@ import '../widgets/card.dart';
 import '../widgets/permission_pill.dart';
 import '../widgets/primary_button.dart';
 import '../themes/app_theme.dart';
+import 'health_test_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -202,6 +203,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               onPressed:
                               _sleepGranted ? null : _requestSleepPermission,
                               actionLabel: _sleepGranted ? null : 'Re-request',
+                            ),
+                            const SizedBox(height: 16),
+                            PrimaryButton(
+                              label: 'Health Connect Test Screen',
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const HealthTestScreen()),
+                                );
+                              },
                             ),
                             const SizedBox(height: 16),
                             PrimaryButton(

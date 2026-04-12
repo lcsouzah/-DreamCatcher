@@ -193,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _noData = false;
     });
 
-    debugPrint("[DreamCatcher] 🔄 Starting refresh... requesting permissions");
+    debugPrint("[DreamCatcher] 🔄 Refreshing data...");
 
     final SharedPreferences prefs = _prefs ?? await SharedPreferences.getInstance();
     final bool useMock = prefs.getBool(StorageKeys.useMockData) ?? false;
@@ -227,11 +227,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final bool permissionGranted = await _healthService.requestPermissions();
+    // Step 2 Fix: Use hasPermissions instead of requestPermissions to prevent crashes on transition
+    final bool hasPermission = await _healthService.hasPermissions();
 
-    debugPrint("[DreamCatcher] Permission result: $permissionGranted");
+    debugPrint("[DreamCatcher] Permission status: $hasPermission");
 
-    if (!permissionGranted) {
+    if (!hasPermission) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -241,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('❌ Health Connect permission not granted'),
+          content: Text('❌ Health Connect permission not granted. Please enable it in Settings.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -458,7 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (_permissionDenied)
                         const ErrorBanner(
                           message:
-                              'Permission not granted. Tap Refresh to try requesting access again.',
+                              'Permission not granted. Please go to Settings to enable Health Connect access.',
                         ),
                       if (_permissionDenied) const SizedBox(height: 16),
                       if (_noData && !_permissionDenied)
