@@ -2,7 +2,10 @@ name: dreamcatcher
 description: "Sleep-to-earn app powered by $DREAM token."
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 1.0.0+6
+version_name: 6
+
+
 
 environment:
   sdk: ^3.8.1
@@ -17,12 +20,12 @@ dependencies:
   shared_preferences: ^2.2.2
   intl: ^0.20.2
   url_launcher: ^6.3.1
-  package_info_plus: ^10.0.0
-  share_plus: ^13.0.0
+  package_info_plus: ^9.0.1
+  share_plus: ^12.0.2
   permission_handler: ^12.0.1
   flutter_dotenv: ^6.0.0
   supabase_flutter: ^2.5.7
-  flutter_health_connect: ^1.2.3
+  health: ^13.3.1
 
   # Cupertino icons
   cupertino_icons: ^1.0.8

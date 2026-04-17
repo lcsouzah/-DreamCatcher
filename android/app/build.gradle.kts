@@ -25,7 +25,8 @@ if (keystorePropertiesFile.exists()) {
 android {
 
     namespace = "com.dreamcatcher.dreamcatcher"
-    compileSdk = 35 // Stabilized to 35
+    compileSdk = 36 // Stabilized to 35
+    compileSdkExtension = 19
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -76,9 +77,7 @@ flutter {
 }
 
 dependencies {
-    // REMOVED Firebase BOM and Analytics
     implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
-    implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("com.google.android.gms:play-services-base:18.10.0")
 }

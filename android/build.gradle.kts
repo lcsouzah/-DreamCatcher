@@ -1,6 +1,7 @@
 @file:Suppress("DEPRECATION")
 
 import com.android.build.gradle.BaseExtension
+import com.android.build.api.dsl.CommonExtension
 import org.gradle.api.file.Directory
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
@@ -53,6 +54,10 @@ subprojects {
             defaultConfig.targetSdkVersion(36)
             compileOptions.sourceCompatibility = JavaVersion.VERSION_17
             compileOptions.targetCompatibility = JavaVersion.VERSION_17
+        }
+
+        extensions.findByType(CommonExtension::class.java)?.apply {
+            compileSdkExtension = 19
         }
 
         tasks.withType<KotlinCompile>().configureEach {

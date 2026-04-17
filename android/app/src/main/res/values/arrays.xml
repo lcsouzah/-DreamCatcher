@@ -3,7 +3,5 @@
     <string-array name="health_permissions">
         <item>android.permission.health.READ_SLEEP</item>
         <item>android.permission.health.WRITE_SLEEP</item>
-        <item>android.permission.health.READ_STEPS</item>
-        <item>android.permission.health.READ_HEART_RATE</item>
     </string-array>
 </resources>
