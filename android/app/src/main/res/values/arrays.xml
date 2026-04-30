@@ -2,6 +2,5 @@
 <resources>
     <string-array name="health_permissions">
         <item>android.permission.health.READ_SLEEP</item>
-        <item>android.permission.health.WRITE_SLEEP</item>
     </string-array>
 </resources>

@@ -1,6 +1,17 @@
 import 'dart:developer';
+
 import 'package:health/health.dart';
+
 import '../models/sleep_record.dart';
+
+class HealthConnectServiceException implements Exception {
+  const HealthConnectServiceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 class HealthConnectService {
   HealthConnectService._();
@@ -9,44 +20,47 @@ class HealthConnectService {
 
   final Health _health = Health();
 
-  static const List<HealthDataType> _types = [
+  static const List<HealthDataType> _types = <HealthDataType>[
     HealthDataType.SLEEP_SESSION,
-    HealthDataType.SLEEP_ASLEEP,
-    HealthDataType.SLEEP_AWAKE,
-    HealthDataType.SLEEP_DEEP,
-    HealthDataType.SLEEP_REM,
   ];
 
-  /// Checks if Health Connect is available on the device.
   Future<bool> isAvailable() async {
     try {
-      final available = await _health.isHealthConnectAvailable();
+      final bool available = await _health.isHealthConnectAvailable();
       log('[Health] Health Connect availability: $available');
       return available;
-    } catch (e) {
-      log('[Health] Error checking availability: $e');
+    } catch (e, st) {
+      log('[Health] Error checking availability: $e', stackTrace: st);
       return false;
     }
   }
 
-  /// Checks if the necessary permissions are already granted.
   Future<bool> hasPermissions() async {
+    final bool available = await isAvailable();
+    if (!available) {
+      return false;
+    }
+
     try {
-      final has = await _health.hasPermissions(_types);
+      final bool? has = await _health.hasPermissions(_types);
       log('[Health] hasPermissions: $has');
       return has ?? false;
-    } catch (e) {
-      log('[Health] hasPermissions error: $e');
+    } catch (e, st) {
+      log('[Health] hasPermissions error: $e', stackTrace: st);
       return false;
     }
   }
 
-  /// Requests permissions from the user.
-  /// Decoupled from Google Sign-In on Android when using Health Connect.
   Future<bool> requestPermissions() async {
+    final bool available = await isAvailable();
+    if (!available) {
+      log('[Health] requestPermissions skipped: Health Connect unavailable');
+      return false;
+    }
+
     try {
       log('[Health] Requesting permissions for types: $_types');
-      final requested = await _health.requestAuthorization(
+      final bool requested = await _health.requestAuthorization(
         _types,
         permissions: _types.map((_) => HealthDataAccess.READ).toList(),
       );
@@ -58,47 +72,54 @@ class HealthConnectService {
     }
   }
 
-  /// Reads sleep records from Health Connect.
   Future<List<SleepRecord>> readSleepSessions({DateTime? from, DateTime? to}) async {
     final DateTime end = to ?? DateTime.now();
     final DateTime start = from ?? end.subtract(const Duration(days: 7));
 
+    final bool available = await isAvailable();
+    if (!available) {
+      throw const HealthConnectServiceException(
+        'Health Connect is not available on this device. Install or update Health Connect and try again.',
+      );
+    }
+
+    final bool hasPermission = await hasPermissions();
+    if (!hasPermission) {
+      throw const HealthConnectServiceException(
+        'Health Connect permission is not granted for sleep data.',
+      );
+    }
+
     try {
       log('[Health] Reading sleep records from $start to $end');
-      
-      // Fetching health data
       final List<HealthDataPoint> dataPoints = await _health.getHealthDataFromTypes(
         startTime: start,
         endTime: end,
         types: _types,
       );
 
-      final out = <SleepRecord>[];
-
-      // Grouping data by session if possible, or mapping individual points
-      // Note: SLEEP_SESSION usually represents the whole night
-      for (final point in dataPoints) {
-        if (point.type == HealthDataType.SLEEP_SESSION || 
-            point.type == HealthDataType.SLEEP_ASLEEP ||
-            point.type == HealthDataType.SLEEP_DEEP ||
-            point.type == HealthDataType.SLEEP_REM ||
-            point.type == HealthDataType.SLEEP_AWAKE) {
-          
-          out.add(SleepRecord(
-            start: point.dateFrom,
-            end: point.dateTo,
-            source: point.sourceName,
-            type: _mapHealthTypeToSleepType(point.type),
-          ));
+      final List<SleepRecord> out = <SleepRecord>[];
+      for (final HealthDataPoint point in dataPoints) {
+        if (point.type == HealthDataType.SLEEP_SESSION) {
+          out.add(
+            SleepRecord(
+              start: point.dateFrom,
+              end: point.dateTo,
+              source: point.sourceName,
+              type: 'light',
+            ),
+          );
         }
       }
 
+      out.sort((SleepRecord a, SleepRecord b) => b.start.compareTo(a.start));
       log('[Health] Successfully read ${out.length} records');
-      out.sort((a, b) => b.start.compareTo(a.start));
       return out;
     } catch (e, st) {
       log('[Health] readSleepSessions error: $e', stackTrace: st);
-      return <SleepRecord>[];
+      throw const HealthConnectServiceException(
+        'Unable to read sleep data right now. Please try again.',
+      );
     }
   }
 
@@ -113,16 +134,15 @@ class HealthConnectService {
       case HealthDataType.SLEEP_ASLEEP:
       case HealthDataType.SLEEP_SESSION:
       default:
-        return 'light'; // Defaulting to light/general sleep
+        return 'light';
     }
   }
 
-  /// Opens Health Connect settings for the user to manage permissions manually.
   Future<void> openHealthConnectSettings() async {
     try {
       await _health.installHealthConnect();
-    } catch (e) {
-      log('[Health] Could not open Health Connect settings: $e');
+    } catch (e, st) {
+      log('[Health] Could not open Health Connect settings: $e', stackTrace: st);
     }
   }
 }

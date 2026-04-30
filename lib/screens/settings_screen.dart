@@ -21,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final HealthConnectService _healthService = HealthConnectService();
 
   bool _sleepGranted = false;
+  bool _healthAvailable = true;
   bool _loadingPermissions = true;
 
   bool _notificationsEnabled = false;
@@ -75,16 +76,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<PermissionStatusData> _getPermissionStatus({bool? useMockData}) async {
     final bool usingMock = useMockData ?? _useMockData;
     if (usingMock) {
-      return PermissionStatusData(sleepGranted: true);
+      return const PermissionStatusData(sleepGranted: true, healthAvailable: true);
     }
 
-    final bool sleepGranted = await _healthService.hasPermissions();
+    final bool healthAvailable = await _healthService.isAvailable();
+    final bool sleepGranted = healthAvailable && await _healthService.hasPermissions();
 
-    return PermissionStatusData(sleepGranted: sleepGranted);
+    return PermissionStatusData(sleepGranted: sleepGranted, healthAvailable: healthAvailable);
   }
 
   void _applyPermissionStatus(PermissionStatusData status) {
     _sleepGranted = status.sleepGranted;
+    _healthAvailable = status.healthAvailable;
   }
 
   Future<void> _refreshPermissions() async {
@@ -107,7 +110,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    await _healthService.requestPermissions();
+    final bool granted = await _healthService.requestPermissions();
+    if (!mounted) return;
+
+    if (!granted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sleep permission not granted.')),
+      );
+    }
+
     await _refreshPermissions();
   }
 
@@ -196,13 +207,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             )
                           else ...<Widget>[
                             PermissionPill(
+                              label: 'Health Connect availability',
+                              status: _healthAvailable ? 'Available' : 'Unavailable',
+                              statusColor: _healthAvailable ? grantedColor : errorColor,
+                              onPressed: _healthAvailable ? null : _healthService.openHealthConnectSettings,
+                              actionLabel: _healthAvailable ? null : 'Install/Open',
+                            ),
+                            const SizedBox(height: 12),
+                            PermissionPill(
                               label: 'Health Connect sleep data',
                               status: _sleepGranted ? 'Granted' : 'Not granted',
                               statusColor:
                               _sleepGranted ? grantedColor : cautionColor,
                               onPressed:
-                              _sleepGranted ? null : _requestSleepPermission,
-                              actionLabel: _sleepGranted ? null : 'Re-request',
+                              (_sleepGranted || !_healthAvailable) ? null : _requestSleepPermission,
+                              actionLabel: (_sleepGranted || !_healthAvailable) ? null : 'Re-request',
                             ),
                             const SizedBox(height: 16),
                             PrimaryButton(
@@ -289,12 +308,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 
 class PermissionStatusData {
-  PermissionStatusData({
+  const PermissionStatusData({
     required this.sleepGranted,
+    required this.healthAvailable,
   });
 
-
   final bool sleepGranted;
+  final bool healthAvailable;
 }
 
 class _ToggleSwitch extends StatelessWidget {

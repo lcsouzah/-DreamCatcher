@@ -30,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   bool _isClaiming = false;
   bool _permissionDenied = false;
+  bool _healthUnavailable = false;
   bool _noData = false;
   bool _useMockData = false;
   bool _enableDebugLogging = false;
@@ -102,16 +103,30 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final bool hasPermissions = await _healthService.hasPermissions();
+    final bool isAvailable = await _healthService.isAvailable();
+    final bool hasPermissions = isAvailable && await _healthService.hasPermissions();
 
     if (!mounted) return;
 
-    if (!hasPermissions) {
-      if(cachedRecordsJson == null) {
+    if (!isAvailable) {
+      if (cachedRecordsJson == null) {
         setState(() {
           _entries = <SleepEntry>[];
           _noData = true;
           _permissionDenied = false;
+          _healthUnavailable = true;
+        });
+      }
+      return;
+    }
+
+    if (!hasPermissions) {
+      if (cachedRecordsJson == null) {
+        setState(() {
+          _entries = <SleepEntry>[];
+          _noData = true;
+          _permissionDenied = true;
+          _healthUnavailable = false;
         });
       }
       return;
@@ -140,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _entries = limitedEntries;
       _noData = limitedEntries.isEmpty;
       _permissionDenied = false;
+      _healthUnavailable = false;
     });
   }
 
@@ -186,10 +202,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _requestHealthPermission() async {
+    final bool granted = await _healthService.requestPermissions();
+    if (!mounted) return;
+
+    if (granted) {
+      await _refresh();
+      return;
+    }
+
+    setState(() {
+      _permissionDenied = true;
+      _healthUnavailable = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Permission not granted. You can try again from Settings.'),
+      ),
+    );
+  }
+
   Future<void> _refresh() async {
     setState(() {
       _isLoading = true;
       _permissionDenied = false;
+      _healthUnavailable = false;
       _noData = false;
     });
 
@@ -227,22 +265,41 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Step 2 Fix: Use hasPermissions instead of requestPermissions to prevent crashes on transition
-    final bool hasPermission = await _healthService.hasPermissions();
+    final bool isAvailable = await _healthService.isAvailable();
+    final bool hasPermission = isAvailable && await _healthService.hasPermissions();
 
-    debugPrint("[DreamCatcher] Permission status: $hasPermission");
+    debugPrint('[DreamCatcher] Health Connect available: $isAvailable, permission: $hasPermission');
+
+    if (!isAvailable) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _healthUnavailable = true;
+        _permissionDenied = false;
+        _noData = _entries.isEmpty;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ Health Connect is unavailable. Install or update it, then try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     if (!hasPermission) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
         _permissionDenied = true;
+        _healthUnavailable = false;
         _noData = _entries.isEmpty;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('❌ Health Connect permission not granted. Please enable it in Settings.'),
+          content: Text('❌ Health Connect sleep permission not granted.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -279,6 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _isLoading = false;
         _noData = _entries.isEmpty;
+        _healthUnavailable = false;
       });
 
       debugPrint('[DreamCatcher] ⚠️ Sleep fetch error: $error');
@@ -456,10 +514,31 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      if (_permissionDenied)
+                      if (_healthUnavailable)
                         const ErrorBanner(
                           message:
-                              'Permission not granted. Please go to Settings to enable Health Connect access.',
+                          'Health Connect is unavailable on this device. Install/update Health Connect to sync sleep.',
+                        ),
+                      if (_healthUnavailable)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: PrimaryButton(
+                            label: 'Open Health Connect',
+                            onPressed: _healthService.openHealthConnectSettings,
+                          ),
+                        ),
+                      if (_healthUnavailable) const SizedBox(height: 16),
+                      if (_permissionDenied)
+                        const ErrorBanner(
+                          message: 'Health Connect sleep permission not granted.',
+                        ),
+                      if (_permissionDenied)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: PrimaryButton(
+                            label: 'Grant sleep permission',
+                            onPressed: _requestHealthPermission,
+                          ),
                         ),
                       if (_permissionDenied) const SizedBox(height: 16),
                       if (_noData && !_permissionDenied)

@@ -25,6 +25,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<SleepEntry> _entries = <SleepEntry>[];
   bool _isLoading = true;
   bool _permissionDenied = false;
+  bool _healthUnavailable = false;
   bool _useMockData = false;
   SharedPreferences? _prefs;
 
@@ -57,19 +58,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
         _isLoading = false;
         _permissionDenied = false;
+        _healthUnavailable = false;
       });
       return;
     }
 
-    final bool hasPermissions = await _healthService.hasPermissions();
+    final bool isAvailable = await _healthService.isAvailable();
+    final bool hasPermissions = isAvailable && await _healthService.hasPermissions();
 
     if (!mounted) return;
+
+    if (!isAvailable) {
+      setState(() {
+        _entries = <SleepEntry>[];
+        _isLoading = false;
+        _permissionDenied = false;
+        _healthUnavailable = true;
+      });
+      return;
+    }
 
     if (!hasPermissions) {
       setState(() {
         _entries = <SleepEntry>[];
         _isLoading = false;
-        _permissionDenied = false;
+        _permissionDenied = true;
+        _healthUnavailable = false;
       });
       return;
     }
@@ -81,6 +95,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _entries = SleepEntry.aggregateFromRecords(records, limit: 0);
         _isLoading = false;
         _permissionDenied = false;
+        _healthUnavailable = false;
       });
     } catch (error) {
       debugPrint('[DreamCatcher] ⚠️ Failed to load history: $error');
@@ -88,6 +103,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _entries = <SleepEntry>[];
         _isLoading = false;
         _permissionDenied = false;
+        _healthUnavailable = false;
       });
     }
   }
@@ -96,6 +112,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     setState(() {
       _isLoading = true;
       _permissionDenied = false;
+      _healthUnavailable = false;
     });
 
     final SharedPreferences prefs =
@@ -119,7 +136,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return;
     }
 
-    final bool permissionGranted = await _healthService.requestPermissions();
+    final bool isAvailable = await _healthService.isAvailable();
+    final bool permissionGranted = isAvailable && await _healthService.hasPermissions();
+
+    if (!isAvailable) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _healthUnavailable = true;
+      });
+      return;
+    }
 
     if (!permissionGranted) {
       if (!mounted) return;
@@ -145,6 +172,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _requestPermission() async {
+    final bool granted = await _healthService.requestPermissions();
+    if (!mounted) return;
+
+    if (granted) {
+      await _refresh();
+      return;
+    }
+
+    setState(() {
+      _permissionDenied = true;
+    });
   }
 
   Future<void> _shareCsv() async {
@@ -198,10 +239,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                if (_permissionDenied)
+                if (_healthUnavailable)
                   const ErrorBanner(
                     message:
-                    'Permission not granted. Refresh to try syncing again.',
+                    'Health Connect is unavailable. Install/update it and try again.',
+                  ),
+                if (_healthUnavailable)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: PrimaryButton(
+                      label: 'Open Health Connect',
+                      expanded: false,
+                      onPressed: _healthService.openHealthConnectSettings,
+                      isLoading: false,
+                    ),
+                  ),
+                if (_healthUnavailable) const SizedBox(height: 16),
+                if (_permissionDenied)
+                  const ErrorBanner(
+                    message: 'Sleep permission not granted. Grant permission to sync.',
+                  ),
+                if (_permissionDenied)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: PrimaryButton(
+                      label: 'Grant permission',
+                      expanded: false,
+                      onPressed: _requestPermission,
+                      isLoading: false,
+                    ),
                   ),
                 if (_permissionDenied) const SizedBox(height: 16),
                 Expanded(

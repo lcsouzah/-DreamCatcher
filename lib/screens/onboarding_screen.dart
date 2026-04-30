@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/auth_service.dart';
+import '../services/health_connect_service.dart';
 import '../services/storage_keys.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -19,28 +20,73 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final AuthService _authService = AuthService();
+  final HealthConnectService _healthService = HealthConnectService();
 
   bool _isLoading = false;
+  bool _isConnectingHealth = false;
+  bool _healthConnected = false;
   String? _errorMessage;
   StreamSubscription<AuthState>? _authStateSubscription;
 
   @override
   void initState() {
     super.initState();
+    _checkInitialHealthStatus();
     // Listen for session changes to detect when the user returns from the browser
     _authStateSubscription = _authService.onAuthStateChange.listen((data) async {
       final Session? session = data.session;
       if (session != null && mounted) {
         developer.log('[DreamCatcher][UI] Supabase Session Acquired: ${session.user.email}', name: 'Onboarding');
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(StorageKeys.onboardingComplete, true);
-
-        if (!mounted) return;
         setState(() => _isLoading = false);
-        widget.onFinished();
       }
     });
+  }
+
+  Future<void> _checkInitialHealthStatus() async {
+    final has = await _healthService.hasPermissions();
+    if (mounted) {
+      setState(() => _healthConnected = has);
+    }
+  }
+
+  Future<void> _connectHealth() async {
+    setState(() {
+      _isConnectingHealth = true;
+      _errorMessage = null;
+    });
+
+    try {
+      if (!await _healthService.isAvailable()) {
+        await _healthService.openHealthConnectSettings();
+        if (mounted) setState(() => _isConnectingHealth = false);
+        return;
+      }
+
+      final granted = await _healthService.requestPermissions();
+      if (mounted) {
+        setState(() {
+          _isConnectingHealth = false;
+          _healthConnected = granted;
+          if (!granted) {
+            _errorMessage = "Health permission is required to track sleep rewards.";
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isConnectingHealth = false;
+          _errorMessage = "Error connecting to Health Connect: $e";
+        });
+      }
+    }
+  }
+
+  Future<void> _finishOnboarding() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(StorageKeys.onboardingComplete, true);
+    if (!mounted) return;
+    widget.onFinished();
   }
 
   @override
@@ -97,7 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          'To get started we need to:',
+                          'To get started:',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -107,20 +153,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         SizedBox(height: 16),
                         _OnboardingBullet(
                           icon: Icons.lock_outline,
-                          text:
-                          'Connect your Google account so we can create your DreamCatcher wallet.',
+                          text: 'Optionally connect Google for account sync and rewards profile.',
                         ),
                         SizedBox(height: 12),
                         _OnboardingBullet(
                           icon: Icons.health_and_safety_outlined,
-                          text:
-                          'Read last night\'s sleep from Health Connect to calculate rewards.',
+                          text: 'Read last night\'s sleep from Health Connect to calculate rewards.',
                         ),
                         SizedBox(height: 12),
                         _OnboardingBullet(
                           icon: Icons.notifications_active_outlined,
-                          text:
-                          'Send friendly nudges if permissions are turned off later.',
+                          text: 'Send friendly nudges if permissions are turned off later.',
                         ),
                       ],
                     ),
@@ -137,46 +180,75 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.favorite, color: Colors.white),
-                    label: const Text("Continue with Google"),
+                    icon: Icon(
+                      _healthConnected ? Icons.check_circle : Icons.favorite,
+                      color: Colors.white,
+                    ),
+                    label: Text(_healthConnected ? "Health Connected" : "Connect Health Data"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF7C3AED),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 14,
-                      ),
+                      backgroundColor: _healthConnected ? Colors.green : const Color(0xFF7C3AED),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    onPressed: _isConnectingHealth || _healthConnected ? null : _connectHealth,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.account_circle, color: Colors.white),
+                    label: const Text("Sign in with Google (Optional)"),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white24),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                     onPressed: _isLoading
                         ? null
                         : () async {
-                      setState(() => _isLoading = true);
-                      _errorMessage = null;
-
-                      developer.log('[DreamCatcher][UI] Initiating Google Sign-In via Supabase', name: 'Onboarding');
-
-                      try {
-                        await _authService.signInWithGoogle();
-                      } catch (error) {
-                        developer.log('[DreamCatcher][UI] Login Initiation Error: $error', name: 'Onboarding');
-                        if (mounted) {
-                          setState(() {
-                            _isLoading = false;
-                            _errorMessage = error.toString();
-                          });
-                        }
-                      }
-                    },
+                            setState(() => _isLoading = true);
+                            _errorMessage = null;
+                            try {
+                              await _authService.signInWithGoogle();
+                            } catch (error) {
+                              if (mounted) {
+                                setState(() {
+                                  _isLoading = false;
+                                  _errorMessage = error.toString();
+                                });
+                              }
+                            }
+                          },
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading || _isConnectingHealth ? null : _finishOnboarding,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Get Started',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'We only track your sleep duration to issue rewards. You can revoke access any time in system settings.',
+                  'Health Connect sleep permission is requested separately. Google login is optional.',
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white54,
-                    fontSize: 13,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -199,14 +271,14 @@ class _OnboardingBullet extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Icon(icon, color: Colors.lightBlueAccent),
+        Icon(icon, color: Colors.lightBlueAccent, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Text(
             text,
             style: const TextStyle(
               color: Colors.white70,
-              fontSize: 15,
+              fontSize: 14,
             ),
           ),
         ),
